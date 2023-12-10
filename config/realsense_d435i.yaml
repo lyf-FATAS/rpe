@@ -1,0 +1,108 @@
+%YAML:1.0
+
+img_l_topic: /d435i/infra1/image_rect_raw
+img_r_topic: /d435i/infra2/image_rect_raw
+odom_topic: /vins_node/odometry
+
+glog_severity_level: 0
+
+# 0: FEATURE_EXTRACTION  1: STEREO_MATCHES  2: DESCRIPTOR_MATCHES
+Visualizer.draw_type: 1
+
+#----------------------------------------------------------------------
+# Camera Parameters (Queried by the "rs-enumerate-devices -c" commmand)
+#----------------------------------------------------------------------
+
+baseline: 0.0498748570680618
+
+# 640 x 480
+# fx: 384.182067871094
+# fy: 384.182067871094
+# cx: 320.958312988281
+# cy: 237.538848876953
+
+# 1280 x 720
+fx: 640.303466796875
+fy: 640.303466796875
+cx: 641.59716796875
+cy: 355.898071289062
+
+#----------------------------------------------------------------------
+# Parameters of Feature and Descriptor Extractor
+#----------------------------------------------------------------------
+
+# 0: GFTT  1: SIFT
+feature_detector_type: 0
+enable_subpix_corner_refinement: 1
+# 0: SIFT  1: ORB
+descriptor_extractor_type: 0
+
+GFTT.max_corner: 400
+GFTT.quality_level: 0.0001
+GFTT.min_distance: 8
+GFTT.block_size: 5
+GFTT.use_harris: 0
+GFTT.k: 0.04
+
+SIFT.n_features: 300
+SIFT.n_octave_layers: 3
+SIFT.contrast_threshold: 0.04
+SIFT.edge_threshold: 10
+SIFT.sigma: 1.6
+# 0: CV_8U  5: CV_32F
+SIFT.descriptor_type: 0
+SIFT.enable_precise_upscale: 0
+
+ORB.n_features: 300
+ORB.scale_factor: 1.2
+ORB.n_levels: 8
+ORB.edge_threshold: 31
+ORB.first_level: 0
+ORB.WTA_K: 3
+ORB.score_type: 0
+ORB.patch_size: 31
+ORB.fast_threshold: 33
+
+#----------------------------------------------------------------------
+# Parameters of Stereo Matcher
+#----------------------------------------------------------------------
+
+SIFT.stereo_desc_dist_th_CV_8U: 2000
+SIFT.stereo_desc_dist_th_CV_32F: 2000
+ORB.stereo_desc_dist_th: 100
+
+#----------------------------------------------------------------------
+# Parameters of Descriptor Matcher
+#----------------------------------------------------------------------
+
+# 0: CV_NN (OpenCV's nearest neighbour)  1: GNN (global nearest neighbour)
+matcher_type: 1
+
+enable_ratio_test: 1
+lowe_ratio: 0.75
+
+SIFT.desc_dist_th_CV_8U: 1500
+SIFT.desc_dist_th_CV_32F: 1000
+ORB.desc_dist_th: 25
+enable_consistency: 0
+weight_desc_vs_consis: 0.5
+weight_len_vs_ang: 0.2
+diff_len_th: 0.33
+diff_ang_th: 45
+GRB_log_to_console: 0
+GRB_mip_focus: 1
+GRB_heuristics: 0.05
+GRB_presolve: 2
+GRB_presparsify: 1
+GRB_time_limit: 5
+
+#----------------------------------------------------------------------
+# Parameters of Ransac
+#----------------------------------------------------------------------
+
+# 0: silent  1: moderate  2: noisy
+ransac_verbosity_level: 0
+ransac_max_iterations: 300
+ransac_probability: 0.995
+ransac_threshold: 0.3
+ransac_min_inliers: 6
