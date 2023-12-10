@@ -1,0 +1,9 @@
+sensor_msgs/Image image
+---
+float32[] keypoints_data
+uint32 keypoints_w
+uint32 keypoints_h
+
+float32[] descriptors_data
+uint32 descriptors_w
+uint32 descriptors_h
