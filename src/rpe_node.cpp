@@ -1,0 +1,358 @@
+#include <termios.h>
+#include <unistd.h>
+#include <string>
+#include <thread>
+#include <chrono>
+#include <mutex>
+#include <ros/ros.h>
+#include <sensor_msgs/Image.h>
+#include <sensor_msgs/image_encodings.h>
+#include <nav_msgs/Odometry.h>
+#include <message_filters/subscriber.h>
+#include <message_filters/time_synchronizer.h>
+#include <cv_bridge/cv_bridge.h>
+#include <opencv2/core/core.hpp>
+#include <opencv2/highgui/highgui.hpp>
+#include <glog/logging.h>
+#include "RPE.hpp"
+#include "Visualizer.hpp"
+#include "temp_variables.hpp"
+
+using namespace std;
+using namespace sensor_msgs;
+using namespace message_filters;
+
+enum FsmState
+{
+    WAITING_FOR_IMG,
+    INIT,
+    SOLVING_BY_TRIGGER,
+    CONTINUOUS_SOLVING
+} state;
+bool trigger = false;
+
+mutex img_mutex, odom_mutex;
+cv_bridge::CvImageConstPtr img1_l_ptr, img1_r_ptr;
+cv_bridge::CvImageConstPtr img2_l_ptr, img2_r_ptr;
+nav_msgs::Odometry odom1, odom2;
+bool recv_odom = false;
+
+unique_ptr<RPE::Visualizer> visualizer;
+
+// https://stackoverflow.com/questions/421860/capture-characters-from-standard-input-without-waiting-for-enter-to-be-pressed
+char getch()
+{
+    char buf = 0;
+    struct termios old = {0};
+    if (tcgetattr(0, &old) < 0)
+        perror("tcsetattr()");
+    old.c_lflag &= ~ICANON;
+    old.c_lflag &= ~ECHO;
+    old.c_cc[VMIN] = 1;
+    old.c_cc[VTIME] = 0;
+    if (tcsetattr(0, TCSANOW, &old) < 0)
+        perror("tcsetattr ICANON");
+    if (read(0, &buf, 1) < 0)
+        perror("read()");
+    old.c_lflag |= ICANON;
+    old.c_lflag |= ECHO;
+    if (tcsetattr(0, TCSADRAIN, &old) < 0)
+        perror("tcsetattr ~ICANON");
+    return (buf);
+}
+
+void keyboardInputThread()
+{
+    while (ros::ok())
+    {
+        char ch = getch();
+        switch (ch)
+        {
+        case ' ':
+        {
+            // capture current img as img1
+            {
+                lock_guard<mutex> lock(img_mutex);
+                img1_r_ptr = img2_r_ptr;
+                img1_l_ptr = img2_l_ptr;
+            }
+
+            if (state == FsmState::INIT)
+            {
+                state = FsmState::SOLVING_BY_TRIGGER;
+                LOG(INFO) << "\033[42mINIT\033[0m --> \033[42mSOLVING_BY_TRIGGER\033[0m";
+                cv::destroyWindow("img_l");
+            }
+
+            if (recv_odom)
+            {
+                lock_guard<mutex> lock(odom_mutex);
+                odom1 = odom2;
+                visualizer->pubPose(odom1, "odom1");
+            }
+            break;
+        }
+        case 'c': // switch to CONTINUOUS_SOLVING mode
+        {
+            if (state == FsmState::SOLVING_BY_TRIGGER)
+            {
+                state = FsmState::CONTINUOUS_SOLVING;
+                LOG(INFO) << "\033[42mSOLVING_BY_TRIGGER\033[0m --> \033[42mCONTINUOUS_SOLVING\033[0m";
+                cv::destroyWindow("img1_l and img2_l");
+            }
+            break;
+        }
+        case 't': // switch to SOLVING_BY_TRIGGER mode
+        {
+            if (state == FsmState::CONTINUOUS_SOLVING)
+            {
+                state = FsmState::SOLVING_BY_TRIGGER;
+                LOG(INFO) << "\033[42mCONTINUOUS_SOLVING\033[0m --> \033[42mSOLVING_BY_TRIGGER\033[0m";
+                trigger = false;
+            }
+            else if (state == FsmState::SOLVING_BY_TRIGGER)
+                trigger = true;
+            break;
+        }
+        default:
+            break;
+        }
+    }
+}
+
+void imgCallback(const ImageConstPtr &img_l_msg, const ImageConstPtr &img_r_msg)
+{
+    try
+    {
+        lock_guard<mutex> lock(img_mutex);
+        img2_l_ptr = cv_bridge::toCvCopy(img_l_msg, image_encodings::MONO8);
+        img2_r_ptr = cv_bridge::toCvCopy(img_r_msg, image_encodings::MONO8);
+    }
+    catch (const cv_bridge::Exception &e)
+    {
+        LOG(ERROR) << "cv_bridge exception: " << string(e.what());
+        return;
+    }
+
+    if (state == FsmState::WAITING_FOR_IMG)
+    {
+        state = FsmState::INIT;
+        LOG(INFO) << "\033[42mWAITING_FOR_IMG\033[0m --> \033[42mINIT\033[0m";
+
+        thread keyboard_input_thread(keyboardInputThread);
+        keyboard_input_thread.detach();
+    }
+}
+
+void odomCallback(const nav_msgs::OdometryConstPtr &odom_msg)
+{
+    lock_guard<mutex> lock(odom_mutex);
+    odom2 = *odom_msg;
+    recv_odom = true;
+}
+
+int main(int argc, char **argv)
+{
+    google::InitGoogleLogging(argv[0]);
+    FLAGS_colorlogtostderr = true;
+
+    ros::init(argc, argv, "rpe_node");
+    ros::NodeHandle nh("~");
+
+    string settings_path = argv[1];
+    cv::FileStorage settings(settings_path, cv::FileStorage::READ);
+
+    int glog_severity_level = settings["glog_severity_level"];
+    switch (glog_severity_level)
+    {
+    case 0:
+        FLAGS_stderrthreshold = google::INFO;
+        break;
+    case 1:
+        FLAGS_stderrthreshold = google::WARNING;
+        break;
+    case 2:
+        FLAGS_stderrthreshold = google::ERROR;
+        break;
+    case 3:
+        FLAGS_stderrthreshold = google::FATAL;
+        break;
+    default:
+        break;
+    }
+
+    RPE::RPE estimator(settings_path);
+
+    visualizer = make_unique<RPE::Visualizer>(nh);
+    RPE::Visualizer::DrawType draw_type;
+    settings["Visualizer.draw_type"] >> draw_type;
+
+    string img_l_topic, img_r_topic, odom_topic;
+    settings["img_l_topic"] >> img_l_topic;
+    settings["img_r_topic"] >> img_r_topic;
+    settings["odom_topic"] >> odom_topic;
+
+    Subscriber<Image> img_l_sub(nh, img_l_topic, 1);
+    Subscriber<Image> img_r_sub(nh, img_r_topic, 1);
+    TimeSynchronizer<Image, Image> sync(img_l_sub, img_r_sub, 10);
+
+    sync.registerCallback(boost::bind(&imgCallback, _1, _2));
+    ros::Subscriber odom_sub = nh.subscribe(odom_topic, 10, odomCallback);
+
+    ros::AsyncSpinner spinner(2);
+    spinner.start();
+
+    while (ros::ok())
+    {
+        switch (state)
+        {
+        case FsmState::WAITING_FOR_IMG:
+        {
+            LOG(INFO) << "Waiting for img to be published @_@";
+            if (recv_odom)
+            {
+                lock_guard<mutex> lock(odom_mutex);
+                visualizer->pubPose(odom2, "odom2");
+            }
+            this_thread::sleep_for(chrono::milliseconds(333));
+            break;
+        }
+        case FsmState::INIT:
+        {
+            {
+                lock_guard<mutex> lock(img_mutex);
+                cv::imshow("img_l", img2_l_ptr->image);
+            }
+            cv::waitKey(50);
+            if (recv_odom)
+            {
+                lock_guard<mutex> lock(odom_mutex);
+                visualizer->pubPose(odom2, "odom2");
+            }
+            break;
+        }
+        case FsmState::SOLVING_BY_TRIGGER:
+        {
+            if (trigger)
+            {
+                cv::Mat img1_l, img1_r, img2_l, img2_r;
+                {
+                    lock_guard<mutex> lock(img_mutex);
+                    img1_l = img1_l_ptr->image.clone();
+                    img1_r = img1_r_ptr->image.clone();
+                    img2_l = img2_l_ptr->image.clone();
+                    img2_r = img2_r_ptr->image.clone();
+                }
+                Matrix3d R12;
+                Vector3d t12;
+                bool recover_pose_success = estimator.estimate(img1_l, img1_r, img2_l, img2_r, R12, t12);
+
+                visualizer->draw(draw_type);
+
+                if (recv_odom)
+                {
+                    if (recover_pose_success)
+                    {
+                        nav_msgs::Odometry odom1_, odom2_;
+                        {
+                            lock_guard<mutex> lock(odom_mutex);
+                            odom1_ = odom1;
+                            odom2_ = odom2;
+                        }
+
+                        visualizer->pubPose(odom2_, "odom2");
+
+                        const Matrix3d R1(Quaterniond(odom1_.pose.pose.orientation.w,
+                                                      odom1_.pose.pose.orientation.x,
+                                                      odom1_.pose.pose.orientation.y,
+                                                      odom1_.pose.pose.orientation.z));
+                        const Vector3d t1(odom1_.pose.pose.position.x,
+                                          odom1_.pose.pose.position.y,
+                                          odom1_.pose.pose.position.z);
+
+                        // x = R1 * (R12 * x2 + t12) + t1 = (R1 * R12) * x2 + (R1 * t12 + t1)
+                        const Matrix3d R2 = R1 * R12;
+                        const Vector3d t2 = R1 * t12 + t1;
+
+                        visualizer->pubPose(R2, t2, "odom2_estimate");
+
+                        visualizer->pubKps3d(RPE::kps3d1, odom1_, "kps3d1");
+                        visualizer->pubKps3d(RPE::kps3d2, odom2_, "kps3d2");
+                        visualizer->pubKps3d(RPE::kps3d2, R2, t2, "kps3d2_estimate");
+                    }
+                    else
+                    {
+                        lock_guard<mutex> lock(odom_mutex);
+                        visualizer->pubPose(odom2, "odom2");
+                    }
+                }
+                trigger = false;
+            }
+            else
+            {
+                {
+                    cv::Mat img_concat;
+                    lock_guard<mutex> lock(img_mutex);
+                    cv::hconcat(img1_l_ptr->image, img2_l_ptr->image, img_concat);
+                    cv::resize(img_concat, img_concat, cv::Size(), 0.66, 0.66);
+                    cv::imshow("img1_l and img2_l", img_concat);
+                }
+                cv::waitKey(50);
+            }
+            break;
+        }
+        case FsmState::CONTINUOUS_SOLVING:
+        {
+            cv::Mat img1_l, img1_r, img2_l, img2_r;
+            {
+                lock_guard<mutex> lock(img_mutex);
+                img1_l = img1_l_ptr->image.clone();
+                img1_r = img1_r_ptr->image.clone();
+                img2_l = img2_l_ptr->image.clone();
+                img2_r = img2_r_ptr->image.clone();
+            }
+            Matrix3d R12;
+            Vector3d t12;
+            bool recover_pose_success = estimator.estimate(img1_l, img1_r, img2_l, img2_r, R12, t12);
+
+            // visualizer->pubKps3d(RPE::kps3d1_debug, Matrix3d::Identity(), Vector3d::Zero(), "kps3d1_debug");
+            // visualizer->pubKps3d(RPE::kps3d2_debug, Matrix3d::Identity(), Vector3d::Zero(), "kps3d2_debug");
+
+            visualizer->draw(draw_type);
+
+            if (recv_odom && recover_pose_success)
+            {
+                nav_msgs::Odometry odom1_, odom2_;
+                {
+                    lock_guard<mutex> lock(odom_mutex);
+                    odom1_ = odom1;
+                    odom2_ = odom2;
+                }
+
+                visualizer->pubPose(odom2_, "odom2");
+
+                const Matrix3d R1(Quaterniond(odom1_.pose.pose.orientation.w,
+                                              odom1_.pose.pose.orientation.x,
+                                              odom1_.pose.pose.orientation.y,
+                                              odom1_.pose.pose.orientation.z));
+                const Vector3d t1(odom1_.pose.pose.position.x,
+                                  odom1_.pose.pose.position.y,
+                                  odom1_.pose.pose.position.z);
+
+                // x = R1 * (R12 * x2 + t12) + t1 = (R1 * R12) * x2 + (R1 * t12 + t1)
+                const Matrix3d R2 = R1 * R12;
+                const Vector3d t2 = R1 * t12 + t1;
+
+                visualizer->pubPose(R2, t2, "odom2_estimate");
+
+                visualizer->pubKps3d(RPE::kps3d1, odom1_, "kps3d1");
+                visualizer->pubKps3d(RPE::kps3d2, odom2_, "kps3d2");
+                visualizer->pubKps3d(RPE::kps3d2, R2, t2, "kps3d2_estimate");
+            }
+            break;
+        }
+        }
+    }
+
+    return 0;
+}

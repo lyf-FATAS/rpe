@@ -1,0 +1,5 @@
+<launch>
+    <!-- <node name="vins_node" pkg="vins" type="vins_node" output="screen" args="$(find vins)/../config/realsense_d435i/realsense_stereo_imu_config.yaml" /> -->
+
+    <node name="rpe_node" pkg="rpe" type="rpe_node" output="screen" args="$(find rpe)/config/realsense_d435i.yaml" />
+</launch>
