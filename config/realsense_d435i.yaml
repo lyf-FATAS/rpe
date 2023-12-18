@@ -31,8 +31,8 @@ cy: 355.898071289062
 # Parameters of Feature and Descriptor Extractor
 #----------------------------------------------------------------------
 
-# 0: GFTT  1: SIFT
-feature_detector_type: 0
+# 0: GFTT  1: SIFT  2: HLOC
+feature_detector_type: 2
 enable_subpix_corner_refinement: 1
 # 0: SIFT  1: ORB
 descriptor_extractor_type: 0
@@ -75,8 +75,8 @@ ORB.stereo_desc_dist_th: 100
 # Parameters of Descriptor Matcher
 #----------------------------------------------------------------------
 
-# 0: CV_NN (OpenCV's nearest neighbour)  1: GNN (global nearest neighbour)
-matcher_type: 1
+# 0: CV_NN (OpenCV's nearest neighbour)  1: GNN (global nearest neighbour)  2: HLOC
+matcher_type: 2
 
 enable_ratio_test: 1
 lowe_ratio: 0.75

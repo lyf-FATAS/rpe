@@ -2,6 +2,9 @@
 
 #include <string>
 #include <chrono>
+#include <ros/ros.h>
+#include <rpe/FeatureDetection.h>
+#include <cv_bridge/cv_bridge.h>
 #include <opencv2/core/core.hpp>
 #include <opencv2/features2d/features2d.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
@@ -15,13 +18,14 @@
 
 using namespace std;
 using namespace Eigen;
+using namespace sensor_msgs;
 
 namespace RPE
 {
     class RPE
     {
     public:
-        RPE(string settings_path);
+        RPE(string settings_path, const ros::NodeHandle &nh_);
 
         bool estimate(const cv::Mat &img1_l_, const cv::Mat &img1_r_,
                       const cv::Mat &img2_l_, const cv::Mat &img2_r_,
@@ -41,6 +45,9 @@ namespace RPE
         bool recoverPoseArun(const vector<Vector3d> &kps3d1_, const vector<Vector3d> &kps3d2_,
                              Matrix3d &R12, Vector3d &t12); // Borrowed from Kimera-VIO
 
+        ros::NodeHandle nh;
+        ros::ServiceClient hloc_feature_detector;
+
         // Camera params
         double baseline;
         double fx;
@@ -51,7 +58,8 @@ namespace RPE
         enum class FeatureDetectorType
         {
             GFTT,
-            SIFT
+            SIFT,
+            HLOC
         } feature_detector_type;
 
         cv::Ptr<cv::FeatureDetector> feature_detector;

@@ -15,10 +15,11 @@ set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS}")
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
 find_package(catkin REQUIRED COMPONENTS
-    roscpp
-    message_filters
-    cv_bridge
-    )
+  roscpp
+  message_filters
+  cv_bridge
+  message_generation
+)
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
@@ -66,11 +67,10 @@ pkg_check_modules(glog REQUIRED libglog)
 # )
 
 ## Generate services in the 'srv' folder
-# add_service_files(
-  #   FILES
-  #   Service1.srv
-#   Service2.srv
-# )
+add_service_files(
+  FILES
+  FeatureDetection.srv
+)
 
 ## Generate actions in the 'action' folder
 # add_action_files(
@@ -80,10 +80,10 @@ pkg_check_modules(glog REQUIRED libglog)
 # )
 
 ## Generate added messages and services with any dependencies listed here
-# generate_messages(
-  #   DEPENDENCIES
-  #   std_msgs  # Or other packages containing msgs
-  # )
+generate_messages(
+  DEPENDENCIES
+  sensor_msgs
+)
 
 ################################################
 ## Declare ROS dynamic reconfigure parameters ##
@@ -128,12 +128,12 @@ catkin_package(
 ## Specify additional locations of header files
 ## Your package locations should be listed before other locations
 include_directories(
-    include
-    ${catkin_INCLUDE_DIRS}
-    ${OpenCV_INCLUDE_DIRS}
-    /home/laji/Apps/gurobi1002/linux64/include
-    ${PCL_INCLUDE_DIRS}
-    ${glog_INCLUDE_DIRS}
+  include
+  ${catkin_INCLUDE_DIRS}
+  ${OpenCV_INCLUDE_DIRS}
+  /home/laji/Apps/gurobi1002/linux64/include
+  ${PCL_INCLUDE_DIRS}
+  ${glog_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -150,11 +150,11 @@ include_directories(
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
 add_executable(${PROJECT_NAME}_node
-    src/rpe_node.cpp
-    src/RPE.cpp
-    src/Matcher.cpp
-    src/Visualizer.cpp
-    src/temp_variables.cpp
+  src/rpe_node.cpp
+  src/RPE.cpp
+  src/Matcher.cpp
+  src/Visualizer.cpp
+  src/temp_variables.cpp
 )
 
 ## Rename C++ executable without prefix
@@ -169,12 +169,12 @@ add_executable(${PROJECT_NAME}_node
 
 ## Specify libraries to link a library or executable target against
 target_link_libraries(${PROJECT_NAME}_node
-    ${catkin_LIBRARIES}
-    ${OpenCV_LIBRARIES}
-    /home/laji/Apps/gurobi1002/linux64/src/build/libgurobi_c++.a
-    /home/laji/Apps/gurobi1002/linux64/lib/libgurobi100.so
-    opengv
-    ${glog_LIBRARIES}
+  ${catkin_LIBRARIES}
+  ${OpenCV_LIBRARIES}
+  /home/laji/Apps/gurobi1002/linux64/src/build/libgurobi_c++.a
+  /home/laji/Apps/gurobi1002/linux64/lib/libgurobi100.so
+  opengv
+  ${glog_LIBRARIES}
 )
 
 #############
@@ -187,7 +187,7 @@ target_link_libraries(${PROJECT_NAME}_node
 ## Mark executable scripts (Python etc.) for installation
 ## in contrast to setup.py, you can choose the destination
 # catkin_install_python(PROGRAMS
-  #   scripts/my_python_script
+#   scripts/my_python_script
 #   DESTINATION ${CATKIN_PACKAGE_BIN_DESTINATION}
 # )
 
