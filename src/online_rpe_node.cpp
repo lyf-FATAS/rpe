@@ -70,7 +70,7 @@ void keyboardInputThread()
         {
         case ' ':
         {
-            // capture current img as img1
+            // Capture current img as img1
             {
                 lock_guard<mutex> lock(img_mutex);
                 img1_r_ptr = img2_r_ptr;
@@ -92,7 +92,7 @@ void keyboardInputThread()
             }
             break;
         }
-        case 'c': // switch to CONTINUOUS_SOLVING mode
+        case 'c': // Switch to CONTINUOUS_SOLVING mode
         {
             if (state == FsmState::SOLVING_BY_TRIGGER)
             {
@@ -102,7 +102,7 @@ void keyboardInputThread()
             }
             break;
         }
-        case 't': // switch to SOLVING_BY_TRIGGER mode
+        case 't': // Switch to SOLVING_BY_TRIGGER mode
         {
             if (state == FsmState::CONTINUOUS_SOLVING)
             {
@@ -156,7 +156,7 @@ int main(int argc, char **argv)
     google::InitGoogleLogging(argv[0]);
     FLAGS_colorlogtostderr = true;
 
-    ros::init(argc, argv, "rpe_node");
+    ros::init(argc, argv, "online_rpe_node");
     ros::NodeHandle nh("~");
 
     string settings_path = argv[1];
@@ -181,7 +181,7 @@ int main(int argc, char **argv)
         break;
     }
 
-    RPE::RPE estimator(settings_path);
+    RPE::RPE estimator(settings_path, nh);
 
     visualizer = make_unique<RPE::Visualizer>(nh);
     RPE::Visualizer::DrawType draw_type;
@@ -248,6 +248,8 @@ int main(int argc, char **argv)
                 bool recover_pose_success = estimator.estimate(img1_l, img1_r, img2_l, img2_r, R12, t12);
 
                 visualizer->draw(draw_type);
+                // visualizer->pubKps3d(RPE::kps3d1_debug, Matrix3d::Identity(), Vector3d::Zero(), "kps3d1_debug");
+                // visualizer->pubKps3d(RPE::kps3d2_debug, Matrix3d::Identity(), Vector3d::Zero(), "kps3d2_debug");
 
                 if (recv_odom)
                 {
@@ -315,10 +317,9 @@ int main(int argc, char **argv)
             Vector3d t12;
             bool recover_pose_success = estimator.estimate(img1_l, img1_r, img2_l, img2_r, R12, t12);
 
+            visualizer->draw(draw_type);
             // visualizer->pubKps3d(RPE::kps3d1_debug, Matrix3d::Identity(), Vector3d::Zero(), "kps3d1_debug");
             // visualizer->pubKps3d(RPE::kps3d2_debug, Matrix3d::Identity(), Vector3d::Zero(), "kps3d2_debug");
-
-            visualizer->draw(draw_type);
 
             if (recv_odom && recover_pose_success)
             {

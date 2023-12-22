@@ -11,10 +11,8 @@ namespace RPE
         settings["fx"] >> fx;
 
         settings["matcher_type"] >> matcher_type;
-
         RPE::DescriptorExtractorType desc_type;
         settings["descriptor_extractor_type"] >> desc_type;
-
         switch (matcher_type)
         {
         case MatcherType::CV_NN:
@@ -23,7 +21,7 @@ namespace RPE
             {
             case RPE::DescriptorExtractorType::SIFT:
             {
-                norm_type = cv::NORM_L1;
+                norm_type = cv::NORM_L1; // FIXME: Wrong norm type for sift
 
                 int descriptor_type = settings["SIFT.descriptor_type"];
                 switch (descriptor_type)
@@ -75,7 +73,7 @@ namespace RPE
             {
             case RPE::DescriptorExtractorType::SIFT:
             {
-                norm_type = cv::NORM_L1;
+                norm_type = cv::NORM_L1; // FIXME: Wrong norm type for sift
 
                 int descriptor_type = settings["SIFT.descriptor_type"];
                 switch (descriptor_type)
@@ -248,7 +246,7 @@ namespace RPE
         {
         case MatcherType::CV_NN:
         {
-            matchByDescCV(kps1, kps2, desc1, desc2, match);
+            matchByDescCV(desc1, desc2, match);
             break;
         }
         case MatcherType::GNN:
@@ -261,8 +259,7 @@ namespace RPE
         }
     }
 
-    void Matcher::matchByDescCV(const vector<cv::KeyPoint> &kps1, const vector<cv::KeyPoint> &kps2,
-                                const vector<cv::Mat> &desc1, const vector<cv::Mat> &desc2,
+    void Matcher::matchByDescCV(const vector<cv::Mat> &desc1, const vector<cv::Mat> &desc2,
                                 vector<int> &match)
     {
         CHECK_EQ(desc1[0].cols, desc2[0].cols) << "desc1.cols != desc2.cols in matchByDescCV #^#";

@@ -1,0 +1,12 @@
+sensor_msgs/Image img1_l
+sensor_msgs/Image img1_r
+sensor_msgs/Image img2_l
+sensor_msgs/Image img2_r
+---
+sensor_msgs/Image kps1_l
+sensor_msgs/Image kps1_r
+sensor_msgs/Image kps2_l
+sensor_msgs/Image kps2_r
+std_msgs/Int32MultiArray match_stereo1
+std_msgs/Int32MultiArray match_stereo2
+std_msgs/Int32MultiArray match12

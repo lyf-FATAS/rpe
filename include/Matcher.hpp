@@ -23,8 +23,7 @@ namespace RPE
                          const vector<cv::Mat> &desc1, const vector<cv::Mat> &desc2,
                          vector<int> &match);
 
-        void matchByDescCV(const vector<cv::KeyPoint> &kps1, const vector<cv::KeyPoint> &kps2,
-                           const vector<cv::Mat> &desc1, const vector<cv::Mat> &desc2,
+        void matchByDescCV(const vector<cv::Mat> &desc1, const vector<cv::Mat> &desc2,
                            vector<int> &match);
 
         void matchByDescGNN(const vector<cv::KeyPoint> &kps1, const vector<cv::KeyPoint> &kps2,
