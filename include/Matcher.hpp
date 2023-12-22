@@ -35,8 +35,7 @@ namespace RPE
         enum MatcherType
         {
             CV_NN, // OpenCV's Nearest Neighbour
-            GNN,   // Global Nearest Neighbour
-            HLOC
+            GNN    // Global Nearest Neighbour
         } matcher_type;
 
         cv::NormTypes norm_type;

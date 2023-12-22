@@ -1,13 +1,13 @@
 import argparse
-import rospy
-from rpe.srv import FeatureDetection, FeatureDetectionResponse
 from cv_bridge import CvBridge, CvBridgeError
-import numpy as np
-import cv2
-import PIL.Image
 import torch
 from hloc import extractors
 from hloc.utils.base_model import dynamic_load
+import rospy
+from rpe.srv import FeatureDetection, FeatureDetectionResponse
+import numpy as np
+import cv2
+import PIL.Image
 
 
 confs = {
@@ -72,7 +72,8 @@ confs = {
     },
 }
 
-default_conf_prep = {
+
+default_prep_conf = {
     "grayscale": False,
     "resize_max": None,
     "resize_force": False,
@@ -96,10 +97,10 @@ def resize_image(image, size, interp):
     return resized
 
 
-def preprocess_image(conf_prep, img_msg):
-    conf_prep = {**default_conf_prep, **conf_prep}
+def preprocess_image(prep_conf, img_msg):
+    prep_conf = {**default_prep_conf, **prep_conf}
 
-    if conf_prep["grayscale"]:
+    if prep_conf["grayscale"]:
         mode = "mono8"
     else:
         mode = "rgb8"
@@ -109,22 +110,22 @@ def preprocess_image(conf_prep, img_msg):
     except CvBridgeError as e:
         print(e)
 
-    if not conf_prep["grayscale"] and len(image.shape) == 3:
+    if not prep_conf["grayscale"] and len(image.shape) == 3:
         image = image[:, :, ::-1]  # BGR to RGB
 
     image = image.astype(np.float32)
     original_size = image.shape[:2][::-1]
 
-    if conf_prep["resize_max"] and (
-        conf_prep["resize_force"] or max(original_size) > conf_prep["resize_max"]
+    if prep_conf["resize_max"] and (
+        prep_conf["resize_force"] or max(original_size) > prep_conf["resize_max"]
     ):
-        scale = conf_prep["resize_max"] / max(original_size)
+        scale = prep_conf["resize_max"] / max(original_size)
         size_new = tuple(int(round(x * scale)) for x in original_size)
         image = resize_image(
             image, size_new, "cv2_area"
         )  # pil_linear is more accurate but slower
 
-    if conf_prep["grayscale"]:
+    if prep_conf["grayscale"]:
         image = image[None]
     else:
         image = image.transpose((2, 0, 1))  # HxWxC to CxHxW
@@ -164,10 +165,10 @@ def detect_features(request):
     resp.desc = bridge.cv2_to_imgmsg(
         np.transpose(pred["descriptors"]), encoding="passthrough"
     )
-    
-    print(pred["keypoints"])
-    print(np.transpose(pred["descriptors"]))
-    
+
+    # print(pred["keypoints"])
+    # print(np.transpose(pred["descriptors"]))
+
     return resp
 
 
@@ -186,6 +187,6 @@ if __name__ == "__main__":
     model = Model(conf["model"]).eval().to(device)
 
     rospy.init_node("feature_detection_server")
-    s = rospy.Service("feature_detection", FeatureDetection, detect_features)
-    print("============= Feature detection server started =============")
+    s = rospy.Service("hloc_feature_detection", FeatureDetection, detect_features)
+    print("============= Feature Detection Server =============")
     rospy.spin()

@@ -70,6 +70,7 @@ pkg_check_modules(glog REQUIRED libglog)
 add_service_files(
   FILES
   FeatureDetection.srv
+  Matching.srv
 )
 
 ## Generate actions in the 'action' folder
@@ -83,6 +84,7 @@ add_service_files(
 generate_messages(
   DEPENDENCIES
   sensor_msgs
+  std_msgs
 )
 
 ################################################
@@ -149,8 +151,8 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(${PROJECT_NAME}_node
-  src/rpe_node.cpp
+add_executable(online_rpe_node
+  src/online_rpe_node.cpp
   src/RPE.cpp
   src/Matcher.cpp
   src/Visualizer.cpp
@@ -168,7 +170,7 @@ add_executable(${PROJECT_NAME}_node
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(${PROJECT_NAME}_node
+target_link_libraries(online_rpe_node
   ${catkin_LIBRARIES}
   ${OpenCV_LIBRARIES}
   /home/laji/Apps/gurobi1002/linux64/src/build/libgurobi_c++.a

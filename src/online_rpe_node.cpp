@@ -156,7 +156,7 @@ int main(int argc, char **argv)
     google::InitGoogleLogging(argv[0]);
     FLAGS_colorlogtostderr = true;
 
-    ros::init(argc, argv, "rpe_node");
+    ros::init(argc, argv, "online_rpe_node");
     ros::NodeHandle nh("~");
 
     string settings_path = argv[1];
@@ -247,7 +247,9 @@ int main(int argc, char **argv)
                 Vector3d t12;
                 bool recover_pose_success = estimator.estimate(img1_l, img1_r, img2_l, img2_r, R12, t12);
 
-                // visualizer->draw(draw_type);
+                visualizer->draw(draw_type);
+                // visualizer->pubKps3d(RPE::kps3d1_debug, Matrix3d::Identity(), Vector3d::Zero(), "kps3d1_debug");
+                // visualizer->pubKps3d(RPE::kps3d2_debug, Matrix3d::Identity(), Vector3d::Zero(), "kps3d2_debug");
 
                 if (recv_odom)
                 {
@@ -315,7 +317,7 @@ int main(int argc, char **argv)
             Vector3d t12;
             bool recover_pose_success = estimator.estimate(img1_l, img1_r, img2_l, img2_r, R12, t12);
 
-            // visualizer->draw(draw_type);
+            visualizer->draw(draw_type);
             // visualizer->pubKps3d(RPE::kps3d1_debug, Matrix3d::Identity(), Vector3d::Zero(), "kps3d1_debug");
             // visualizer->pubKps3d(RPE::kps3d2_debug, Matrix3d::Identity(), Vector3d::Zero(), "kps3d2_debug");
 

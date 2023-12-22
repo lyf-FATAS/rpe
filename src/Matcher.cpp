@@ -11,10 +11,8 @@ namespace RPE
         settings["fx"] >> fx;
 
         settings["matcher_type"] >> matcher_type;
-
         RPE::DescriptorExtractorType desc_type;
         settings["descriptor_extractor_type"] >> desc_type;
-
         switch (matcher_type)
         {
         case MatcherType::CV_NN:
@@ -23,7 +21,7 @@ namespace RPE
             {
             case RPE::DescriptorExtractorType::SIFT:
             {
-                norm_type = cv::NORM_L1;  // FIXME: Wrong norm type for sift
+                norm_type = cv::NORM_L1; // FIXME: Wrong norm type for sift
 
                 int descriptor_type = settings["SIFT.descriptor_type"];
                 switch (descriptor_type)
@@ -75,7 +73,7 @@ namespace RPE
             {
             case RPE::DescriptorExtractorType::SIFT:
             {
-                norm_type = cv::NORM_L1;  // FIXME: Wrong norm type for sift
+                norm_type = cv::NORM_L1; // FIXME: Wrong norm type for sift
 
                 int descriptor_type = settings["SIFT.descriptor_type"];
                 switch (descriptor_type)

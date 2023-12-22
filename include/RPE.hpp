@@ -4,6 +4,7 @@
 #include <chrono>
 #include <ros/ros.h>
 #include <rpe/FeatureDetection.h>
+#include <rpe/Matching.h>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/core/core.hpp>
 #include <opencv2/features2d/features2d.hpp>
@@ -35,18 +36,20 @@ namespace RPE
                              vector<cv::Mat> &desc_l, vector<cv::Mat> &desc_r,
                              vector<Vector3d> &kps3d);
 
+        void extractKpsDepth(const vector<int> &match, vector<cv::KeyPoint> &kps_l, vector<cv::KeyPoint> &kps_r,
+                             vector<Vector3d> &kps3d);
+
         void matchByDescriptor(vector<cv::KeyPoint> &kps1, vector<cv::KeyPoint> &kps2,
                                vector<cv::Mat> &desc1, vector<cv::Mat> &desc2,
                                vector<Vector3d> &kps3d1, vector<Vector3d> &kps3d2);
 
         template <typename T>
-        inline void rearrangeMatchedVec(const vector<int> &match, vector<T> &kps1, vector<T> &kps2);
+        inline void rearrangeMatchedVec(const vector<int> &match, vector<T> &vec1, vector<T> &vec2);
 
         bool recoverPoseArun(const vector<Vector3d> &kps3d1_, const vector<Vector3d> &kps3d2_,
                              Matrix3d &R12, Vector3d &t12); // Borrowed from Kimera-VIO
 
         ros::NodeHandle nh;
-        ros::ServiceClient hloc_feature_detector;
 
         // Camera params
         double baseline;
@@ -64,6 +67,7 @@ namespace RPE
 
         cv::Ptr<cv::FeatureDetector> feature_detector;
         bool enable_subpix_corner_refinement;
+        ros::ServiceClient hloc_feature_detector;
 
         enum class DescriptorExtractorType
         {
@@ -73,7 +77,9 @@ namespace RPE
 
         cv::Ptr<cv::DescriptorExtractor> descriptor_extractor;
 
+        bool enable_hloc_matcher;
         unique_ptr<Matcher> matcher;
+        ros::ServiceClient hloc_matcher;
 
         using SacProblem = opengv::sac_problems::point_cloud::PointCloudSacProblem;
         unique_ptr<opengv::sac::Ransac<SacProblem>> ransacer;
