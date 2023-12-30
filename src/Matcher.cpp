@@ -262,7 +262,7 @@ namespace RPE
     void Matcher::matchByDescCV(const vector<cv::Mat> &desc1, const vector<cv::Mat> &desc2,
                                 vector<int> &match)
     {
-        CHECK_EQ(desc1[0].cols, desc2[0].cols) << "desc1.cols != desc2.cols in matchByDescCV #^#";
+        CHECK_EQ(desc1[0].cols, desc2[0].cols);
 
         vector<vector<cv::DMatch>> matches;
         size_t desc1_mat_rows = desc1.size();

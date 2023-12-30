@@ -4,6 +4,7 @@ img_l_topic: /d435i/infra1/image_rect_raw
 img_r_topic: /d435i/infra2/image_rect_raw
 odom_topic: /vins_node/odometry
 
+# 0: INFO  1: WARNING  2: ERROR  3: FATAL
 glog_severity_level: 0
 
 # 0: FEATURE_EXTRACTION  1: STEREO_MATCHES  2: DESCRIPTOR_MATCHES
@@ -102,9 +103,16 @@ GRB_time_limit: 5
 # Parameters of Ransac
 #----------------------------------------------------------------------
 
+far_pt_thr: 20.0
+
 # 0: silent  1: moderate  2: noisy
 ransac_verbosity_level: 0
-ransac_max_iterations: 300
-ransac_probability: 0.995
-ransac_threshold: 0.3
 ransac_min_inliers: 6
+
+mono_ransac_max_iterations: 300
+mono_ransac_threshold: 0.00001
+
+stereo_ransac_max_iterations: 300
+stereo_ransac_threshold: 0.3
+
+enable_nlopt: 0

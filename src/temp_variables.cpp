@@ -14,6 +14,5 @@ namespace RPE
     vector<Vector3d> kps3d1, kps3d2;
     vector<Vector3d> kps3d1_debug, kps3d2_debug;
 
-    Matrix3d R12;
-    Vector3d t12;
+    Matrix3d R12_mono;
 }

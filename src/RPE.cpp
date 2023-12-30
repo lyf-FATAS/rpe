@@ -110,17 +110,25 @@ namespace RPE
             matcher = make_unique<Matcher>(settings_path);
         }
 
-        ransacer = make_unique<opengv::sac::Ransac<SacProblem>>();
-        settings["ransac_max_iterations"] >> ransacer->max_iterations_;
-        settings["ransac_probability"] >> ransacer->probability_;
-        settings["ransac_threshold"] >> ransacer->threshold_;
-        settings["ransac_min_inliers"] >> ransac_min_inliers;
+        settings["far_pt_thr"] >> far_pt_thr;
+
         settings["ransac_verbosity_level"] >> ransac_verbosity_level;
+        settings["ransac_min_inliers"] >> ransac_min_inliers;
+
+        mono_ransacer = make_unique<opengv::sac::Ransac<SacProblemMono>>();
+        settings["mono_ransac_max_iterations"] >> mono_ransacer->max_iterations_;
+        settings["mono_ransac_threshold"] >> mono_ransacer->threshold_;
+
+        stereo_ransacer = make_unique<opengv::sac::Ransac<SacProblemStereo>>();
+        settings["stereo_ransac_max_iterations"] >> stereo_ransacer->max_iterations_;
+        settings["stereo_ransac_threshold"] >> stereo_ransacer->threshold_;
+
+        settings["enable_nlopt"] >> enable_nlopt;
     }
 
     bool RPE::estimate(const cv::Mat &img1_l_, const cv::Mat &img1_r_,
                        const cv::Mat &img2_l_, const cv::Mat &img2_r_,
-                       Matrix3d &R12_, Vector3d &t12_)
+                       Matrix3d &R12, Vector3d &t12)
     {
         LOG(INFO) << "============= RPE =============";
         auto t0 = chrono::high_resolution_clock::now(), t1 = chrono::high_resolution_clock::now(), t2 = chrono::high_resolution_clock::now(), t3 = chrono::high_resolution_clock::now(), t4 = chrono::high_resolution_clock::now(), t5 = chrono::high_resolution_clock::now();
@@ -538,18 +546,21 @@ namespace RPE
         /****** Geometric Verification ******/
         /************************************/
 
-        bool recover_pose_success = recoverPoseArun(kps3d1, kps3d2, R12, t12);
+        filterFarPts(kps3d1, kps3d2);
+
+        bool recover_pose_success = false;
+        if (geometricVerificationNister(kps1_l, kps2_l, R12_mono))
+        {
+            if (recoverPose(kps3d1, kps3d2, R12_mono, R12, t12))
+            {
+                recover_pose_success = true;
+                LOG(INFO) << "Recover pose succeeded :)";
+            }
+        }
 
         auto t6 = chrono::high_resolution_clock::now();
 
-        if (recover_pose_success)
-        {
-            R12_ = R12;
-            t12_ = t12;
-
-            LOG(INFO) << "Recover pose succeeded :)";
-        }
-
+        // Print running time
         if (enable_hloc_matcher)
         {
             LOG(INFO) << "[Histogram Equalization]: "
@@ -675,46 +686,136 @@ namespace RPE
         vec2 = vec2_temp;
     }
 
-    bool RPE::recoverPoseArun(const vector<Vector3d> &kps3d1_, const vector<Vector3d> &kps3d2_,
-                              Matrix3d &R12, Vector3d &t12)
+    void RPE::filterFarPts(vector<Vector3d> &kps3d1, vector<Vector3d> &kps3d2)
     {
-        CHECK_EQ(kps3d1_.size(), kps3d2_.size()) << "kps3d1.size() != kps3d2.size() in recoverPoseArun #^#";
+        CHECK_EQ(kps3d1.size(), kps3d2.size());
 
-        const size_t n_matches = kps3d1_.size();
-        opengv::points_t kps3d1, kps3d2;
-        kps3d1.resize(n_matches);
-        kps3d2.resize(n_matches);
+        size_t ori_size = kps3d1.size(), idx = 0;
+        for (size_t i = 0; i < kps3d1.size(); i++)
+        {
+            if (kps3d1[i].z() <= far_pt_thr && kps3d2[i].z() <= far_pt_thr)
+            {
+                kps3d1[idx] = kps3d1[i];
+                kps3d2[idx++] = kps3d2[i];
+            }
+        }
+        kps3d1.resize(idx);
+        kps3d2.resize(idx);
+
+        LOG(INFO) << "Filter out " << ori_size - idx << " far points";
+    }
+
+    bool RPE::geometricVerificationNister(const vector<cv::KeyPoint> &kps1, const vector<cv::KeyPoint> &kps2, Matrix3d &R12_mono)
+    {
+        CHECK_EQ(kps1.size(), kps2.size());
+
+        const size_t n_matches = kps1.size();
+        opengv::bearingVectors_t bearing_vecs1, bearing_vecs2;
+        bearing_vecs1.resize(n_matches);
+        bearing_vecs2.resize(n_matches);
         for (size_t i = 0; i < n_matches; i++)
         {
-            kps3d1[i] = kps3d1_[i];
-            kps3d2[i] = kps3d2_[i];
+            bearing_vecs1[i] = opengv::bearingVector_t(kps1[i].pt.x, kps1[i].pt.y, 1.0).normalized();
+            bearing_vecs2[i] = opengv::bearingVector_t(kps2[i].pt.x, kps2[i].pt.y, 1.0).normalized();
         }
-        opengv::point_cloud::PointCloudAdapter adapter(kps3d1, kps3d2);
+        opengv::relative_pose::CentralRelativeAdapter adapter(bearing_vecs1, bearing_vecs2);
 
-        ransacer->sac_model_ = make_shared<SacProblem>(adapter);
-        bool ransac_success = ransacer->computeModel(ransac_verbosity_level);
+        mono_ransacer->sac_model_ = make_shared<SacProblemMono>(adapter, SacProblemMono::Algorithm::NISTER);
+        bool ransac_success = mono_ransacer->computeModel(ransac_verbosity_level);
 
         if (ransac_success)
         {
-            if (ransacer->inliers_.size() >= ransac_min_inliers)
+            if (mono_ransacer->inliers_.size() >= ransac_min_inliers)
             {
-                opengv::transformation_t T12 = ransacer->model_coefficients_;
+                LOG(INFO) << "Mono RANSAC has " << mono_ransacer->inliers_.size() << " inliers";
 
-                R12 = T12.block<3, 3>(0, 0);
-                t12 = T12.col(3);
+                opengv::transformation_t T12 = mono_ransacer->model_coefficients_;
+                R12_mono = T12.block<3, 3>(0, 0);
 
                 return true;
             }
             else
             {
-                LOG(WARNING) << "Only " << ransacer->inliers_.size() << " RANSAC inliers #^#";
+                LOG(WARNING) << "Only " << mono_ransacer->inliers_.size() << " mono RANSAC inliers #^#";
                 return false;
             }
         }
         else
         {
-            LOG(WARNING) << "RANSAC failed #^#";
+            LOG(WARNING) << "Mono RANSAC failed #^#";
             return false;
         }
+    }
+
+    bool RPE::recoverPose(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2, const Matrix3d &R12_mono,
+                              Matrix3d &R12, Vector3d &t12)
+    {
+        CHECK_EQ(kps3d1.size(), kps3d2.size());
+
+        // Compute transform using Arun's 3-point method + RANSAC
+        const size_t n_matches = kps3d1.size();
+        opengv::points_t kps3d1_, kps3d2_;
+        kps3d1_.resize(n_matches);
+        kps3d2_.resize(n_matches);
+        for (size_t i = 0; i < n_matches; i++)
+        {
+            kps3d1_[i] = kps3d1[i];
+            kps3d2_[i] = kps3d2[i];
+        }
+        opengv::point_cloud::PointCloudAdapter adapter(kps3d1_, kps3d2_);
+        adapter.setR12(R12_mono);
+
+        stereo_ransacer->sac_model_ = make_shared<SacProblemStereo>(adapter);
+        bool ransac_success = stereo_ransacer->computeModel(ransac_verbosity_level);
+        const size_t n_inliers = stereo_ransacer->inliers_.size();
+
+        Matrix3d R12_stereo;
+        Vector3d t12_stereo;
+        if (ransac_success)
+        {
+            if (n_inliers >= ransac_min_inliers)
+            {
+                LOG(INFO) << "Stereo RANSAC has " << n_inliers << " inliers";
+
+                opengv::transformation_t T12 = stereo_ransacer->model_coefficients_;
+                R12_stereo = T12.block<3, 3>(0, 0);
+                t12_stereo = T12.col(3);
+            }
+            else
+            {
+                LOG(WARNING) << "Only " << n_inliers << " stereo RANSAC inliers #^#";
+                return false;
+            }
+        }
+        else
+        {
+            LOG(WARNING) << "Stereo RANSAC failed #^#";
+            return false;
+        }
+
+        if (enable_nlopt)
+        {
+            // Compute transform using non-linear optimization with RANSAC inliers
+            opengv::points_t kps3d1_inlier, kps3d2_inlier;
+            kps3d1_inlier.resize(n_inliers);
+            kps3d2_inlier.resize(n_inliers);
+            for (size_t i = 0; i < n_inliers; i++)
+            {
+                kps3d1_inlier[i] = kps3d1[stereo_ransacer->inliers_[i]];
+                kps3d2_inlier[i] = kps3d2[stereo_ransacer->inliers_[i]];
+            }
+            opengv::point_cloud::PointCloudAdapter adapter_inlier(kps3d1_inlier, kps3d2_inlier);
+            adapter_inlier.setR12(R12_mono);
+
+            opengv::transformation_t T12 = opengv::point_cloud::optimize_nonlinear(adapter_inlier);
+            R12 = T12.block<3, 3>(0, 0);
+            t12 = T12.col(3);
+        }
+        else
+        {
+            R12 = R12_stereo;
+            t12 = t12_stereo;
+        }
+        return true;
     }
 }

@@ -188,5 +188,5 @@ if __name__ == "__main__":
 
     rospy.init_node("feature_detection_server")
     s = rospy.Service("hloc_feature_detection", FeatureDetection, detect_features)
-    print("============= Feature Detection Server =============")
+    print("============= Feature Detection Server, QiDong! =============")
     rospy.spin()

@@ -21,6 +21,5 @@ namespace RPE
     extern vector<Vector3d> kps3d1, kps3d2;
     extern vector<Vector3d> kps3d1_debug, kps3d2_debug;
 
-    extern Matrix3d R12;
-    extern Vector3d t12;
+    extern Matrix3d R12_mono;
 }
