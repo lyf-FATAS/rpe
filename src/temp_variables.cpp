@@ -4,8 +4,8 @@ namespace RPE
 {
     cv::Mat img1_l, img1_r, img2_l, img2_r;
 
-    vector<cv::KeyPoint> kps1_l, kps1_r, kps2_l, kps2_r;
-    vector<cv::KeyPoint> kps1_l_ori, kps1_r_ori, kps2_l_ori, kps2_r_ori;
+    vector<cv::KeyPoint> kps1_l, kps1_r, kps2_l, kps2_r;//keypoints
+    vector<cv::KeyPoint> kps1_l_ori, kps1_r_ori, kps2_l_ori, kps2_r_ori;//keypoints origin
     vector<cv::KeyPoint> kps1_l_stereo, kps1_r_stereo, kps2_l_stereo, kps2_r_stereo;
     vector<cv::KeyPoint> kps1_l_desc, kps2_l_desc;
 

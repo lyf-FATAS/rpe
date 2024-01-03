@@ -11,11 +11,11 @@ namespace RPE
         settings["fx"] >> fx;
 
         settings["matcher_type"] >> matcher_type;
-        RPE::DescriptorExtractorType desc_type;
-        settings["descriptor_extractor_type"] >> desc_type;
+        RPE::DescriptorExtractorType desc_type; // 0: CV_NN (OpenCV's nearest neighbour)  1: GNN (global nearest neighbour)
+        settings["descriptor_extractor_type"] >> desc_type; // 0: SIFT  1: ORB
         switch (matcher_type)
         {
-        case MatcherType::CV_NN:
+        case MatcherType::CV_NN: //CV_NN (OpenCV's nearest neighbour) 
         {
             switch (desc_type)
             {
@@ -67,7 +67,7 @@ namespace RPE
 
             break;
         }
-        case MatcherType::GNN:
+        case MatcherType::GNN: //GNN (global nearest neighbour)
         {
             switch (desc_type)
             {

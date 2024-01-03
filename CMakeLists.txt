@@ -11,6 +11,8 @@ set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -pthread -fexceptions")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 ${CMAKE_CXX_FLAGS}")
 set(CMAKE_CXX_FLAGS_DEBUG "${CMAKE_CXX_FLAGS}")
 
+list(APPEND CMAKE_MODULE_PATH "${PROJECT_SOURCE_DIR}/cmake")
+
 ## Find catkin macros and libraries
 ## if COMPONENTS list like find_package(catkin REQUIRED COMPONENTS xyz)
 ## is used, also find other catkin packages
@@ -23,12 +25,14 @@ find_package(catkin REQUIRED COMPONENTS
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
-find_package(OpenCV 4.4 REQUIRED PATHS /home/laji/Apps/opencv-4.8.0/build)
+find_package(OpenCV 4.4 REQUIRED PATHS /home/tianyu/Apps/opencv/opencv-4.8.0/build)
+# message("########################### " ${OpenCV_LIBRARIES})
 find_package(PCL REQUIRED)
-find_package(opengv REQUIRED PATHS /home/laji/Apps/opengv/build)
+find_package(opengv REQUIRED PATHS /home/tianyu/Apps/opengv/build)
 # Find glog: https://github.com/google/glog/issues/519
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(glog REQUIRED libglog)
+find_package(MOSEK REQUIRED)
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -133,9 +137,10 @@ include_directories(
   include
   ${catkin_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
-  /home/laji/Apps/gurobi1002/linux64/include
+  /home/tianyu/Apps/gurobi1100/linux64/include
   ${PCL_INCLUDE_DIRS}
   ${glog_INCLUDE_DIRS}
+  ${MOSEK_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -173,10 +178,11 @@ add_executable(online_rpe_node
 target_link_libraries(online_rpe_node
   ${catkin_LIBRARIES}
   ${OpenCV_LIBRARIES}
-  /home/laji/Apps/gurobi1002/linux64/src/build/libgurobi_c++.a
-  /home/laji/Apps/gurobi1002/linux64/lib/libgurobi100.so
+  /home/tianyu/Apps/gurobi1100/linux64/src/build/libgurobi_c++.a
+  /home/tianyu/Apps/gurobi1100/linux64/lib/libgurobi110.so
   opengv
   ${glog_LIBRARIES}
+  ${MOSEK_LIBRARIES}
 )
 
 #############

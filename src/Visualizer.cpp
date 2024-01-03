@@ -122,27 +122,28 @@ namespace RPE
 
         cv::cvtColor(img1_l_show, img1_l_show, cv::COLOR_GRAY2BGR);
         cv::cvtColor(img2_l_show, img2_l_show, cv::COLOR_GRAY2BGR);
-
+        //绘制特征点
         for (size_t i = 0; i < kps1_l_stereo.size(); i++)
             cv::circle(img1_l_show, kps1_l_stereo[i].pt, 4, cv::Scalar(0, 0, 255), -1);
         for (size_t i = 0; i < kps2_l_stereo.size(); i++)
             cv::circle(img2_l_show, kps2_l_stereo[i].pt, 4, cv::Scalar(0, 0, 255), -1);
 
         cv::Mat img12_show;
-        cv::vconcat(img1_l_show, img2_l_show, img12_show);
+        cv::vconcat(img1_l_show, img2_l_show, img12_show); //垂直拼接两帧图像
 
         for (size_t i = 0; i < kps1_l_desc.size(); i++)
         {
-            const cv::Point &kp_1 = kps1_l_desc[i].pt;
+            const cv::Point &kp_1 = kps1_l_desc[i].pt; //获取特征点位置
             const cv::Point &kp_2_ = kps2_l_desc[i].pt;
-            const cv::Point kp_2(kp_2_.x, kp_2_.y + img1_l_show.rows);
-
+            const cv::Point kp_2(kp_2_.x, kp_2_.y + img1_l_show.rows); //获取特征点位置
+            //绘制匹配关系
             cv::line(img12_show, kp_1, kp_2, cv::Scalar(0, 155, 0), 2);
+            //绘制特征点
             cv::circle(img12_show, kp_1, 4, cv::Scalar(0, 255, 0), -1);
             cv::circle(img12_show, kp_2, 4, cv::Scalar(0, 255, 0), -1);
         }
 
-        cv::resize(img12_show, img12_show, cv::Size(), 0.66, 0.66);
+        cv::resize(img12_show, img12_show, cv::Size(), 0.66, 0.66); //缩小图像为原尺寸的66%
 
         cv::putText(img12_show, to_string(kps1_l_desc.size()) + "|" + to_string(kps1_l_stereo.size()) + ":" + to_string(kps2_l_stereo.size()),
                     cv::Point(3, 17), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 0, 255), 2);
@@ -155,19 +156,19 @@ namespace RPE
     {
         pose_msg.header.frame_id = "map";
 
-        if (pose_publisher_set.find(topic) == pose_publisher_set.end())
+        if (pose_publisher_set.find(topic) == pose_publisher_set.end()) //查看需要发布的话题是否是当前正在发布的
         {
-            pose_publisher_set[topic] = nh.advertise<nav_msgs::Odometry>(topic, 10);
+            pose_publisher_set[topic] = nh.advertise<nav_msgs::Odometry>(topic, 10); //初始化发布对象
             std::this_thread::sleep_for(std::chrono::seconds(1));
-            pose_publisher_set[topic].publish(pose_msg);
+            pose_publisher_set[topic].publish(pose_msg); //发布位姿
         }
         else
-            pose_publisher_set[topic].publish(pose_msg);
+            pose_publisher_set[topic].publish(pose_msg); //发布位姿
     }
 
     void Visualizer::pubPose(const Matrix3d &R, const Vector3d &t, const string &topic)
     {
-        nav_msgs::Odometry pose_msg;
+        nav_msgs::Odometry pose_msg; //转换格式
 
         const Quaterniond q(R);
         pose_msg.pose.pose.orientation.w = q.w();
@@ -184,7 +185,7 @@ namespace RPE
     void Visualizer::pubKps3d(const vector<Vector3d> &kps3d, const Matrix3d &R, const Vector3d &t, const string &topic)
     {
         pcl::PointCloud<pcl::PointXYZ> pc;
-        for (size_t i = 0; i < kps3d.size(); i++)
+        for (size_t i = 0; i < kps3d.size(); i++) //从相机坐标系下的位姿变换到全局坐标系下的位姿
         {
             Vector3d pt = kps3d[i];
             pt = R * pt + t;
@@ -195,18 +196,19 @@ namespace RPE
         pcl::toROSMsg(pc, kps3d_msg);
         kps3d_msg.header.frame_id = "map";
 
-        if (kps3d_publisher_set.find(topic) == kps3d_publisher_set.end())
+        if (kps3d_publisher_set.find(topic) == kps3d_publisher_set.end()) //查看需要发布的话题是否是当前正在发布的
         {
-            kps3d_publisher_set[topic] = nh.advertise<sensor_msgs::PointCloud2>(topic, 10);
+            kps3d_publisher_set[topic] = nh.advertise<sensor_msgs::PointCloud2>(topic, 10); //初始化发布对象
             std::this_thread::sleep_for(std::chrono::seconds(1));
-            kps3d_publisher_set[topic].publish(kps3d_msg);
+            kps3d_publisher_set[topic].publish(kps3d_msg); //发布三维点
         }
         else
-            kps3d_publisher_set[topic].publish(kps3d_msg);
+            kps3d_publisher_set[topic].publish(kps3d_msg); //发布三维点
     }
 
     void Visualizer::pubKps3d(const vector<Vector3d> &kps3d, const nav_msgs::Odometry &pose, const string &topic)
     {
+        //转换格式
         const Matrix3d R(Quaterniond(pose.pose.pose.orientation.w,
                                      pose.pose.pose.orientation.x,
                                      pose.pose.pose.orientation.y,
@@ -217,4 +219,15 @@ namespace RPE
 
         pubKps3d(kps3d, R, t, topic);
     }
+
+
+    
+
+
+
+
+
+
+
+
 }
