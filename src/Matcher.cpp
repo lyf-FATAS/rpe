@@ -262,7 +262,7 @@ namespace RPE
     void Matcher::matchByDescCV(const vector<cv::Mat> &desc1, const vector<cv::Mat> &desc2,
                                 vector<int> &match)
     {
-        CHECK_EQ(desc1[0].cols, desc2[0].cols) << "desc1.cols != desc2.cols in matchByDescCV #^#";
+        CHECK_EQ(desc1[0].cols, desc2[0].cols);
 
         vector<vector<cv::DMatch>> matches;
         size_t desc1_mat_rows = desc1.size();
@@ -383,7 +383,7 @@ namespace RPE
                                                   (weight_len_vs_ang * 1.0 / diff_len_th * (diff_len_th - diff_len) +
                                                    (1.0 - weight_len_vs_ang) * 1.0 / diff_ang_th * (diff_ang_th - diff_ang)));
 
-                            CHECK(!isnan(consistency.back()) && !isinf(consistency.back())) << "Consistency = Nan or Inf #^#";
+                            CHECK(!isnan(consistency.back()) && !isinf(consistency.back()));
                         }
                     }
                 }

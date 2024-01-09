@@ -124,27 +124,38 @@ namespace RPE
         cv::cvtColor(img2_l_show, img2_l_show, cv::COLOR_GRAY2BGR);
 
         for (size_t i = 0; i < kps1_l_stereo.size(); i++)
-            cv::circle(img1_l_show, kps1_l_stereo[i].pt, 4, cv::Scalar(0, 0, 255), -1);
+            cv::circle(img1_l_show, kps1_l_stereo[i].pt, 2, cv::Scalar(0, 0, 255), -1);
         for (size_t i = 0; i < kps2_l_stereo.size(); i++)
-            cv::circle(img2_l_show, kps2_l_stereo[i].pt, 4, cv::Scalar(0, 0, 255), -1);
+            cv::circle(img2_l_show, kps2_l_stereo[i].pt, 2, cv::Scalar(0, 0, 255), -1);
 
         cv::Mat img12_show;
         cv::vconcat(img1_l_show, img2_l_show, img12_show);
 
-        for (size_t i = 0; i < kps1_l_desc.size(); i++)
+        for (size_t i = 0; i < kps1_l_matched.size(); i++)
         {
-            const cv::Point &kp_1 = kps1_l_desc[i].pt;
-            const cv::Point &kp_2_ = kps2_l_desc[i].pt;
+            const cv::Point &kp_1 = kps1_l_matched[i].pt;
+            const cv::Point &kp_2_ = kps2_l_matched[i].pt;
             const cv::Point kp_2(kp_2_.x, kp_2_.y + img1_l_show.rows);
 
-            cv::line(img12_show, kp_1, kp_2, cv::Scalar(0, 155, 0), 2);
-            cv::circle(img12_show, kp_1, 4, cv::Scalar(0, 255, 0), -1);
-            cv::circle(img12_show, kp_2, 4, cv::Scalar(0, 255, 0), -1);
+            cv::line(img12_show, kp_1, kp_2, cv::Scalar(0, 155, 0), 1);
+            cv::circle(img12_show, kp_1, 2, cv::Scalar(0, 255, 0), -1);
+            cv::circle(img12_show, kp_2, 2, cv::Scalar(0, 255, 0), -1);
+        }
+
+        for (size_t i = 0; i < kps1_l_refined.size(); i++)
+        {
+            const cv::Point &kp_1 = kps1_l_refined[i].pt;
+            const cv::Point &kp_2_ = kps2_l_refined[i].pt;
+            const cv::Point kp_2(kp_2_.x, kp_2_.y + img1_l_show.rows);
+
+            cv::line(img12_show, kp_1, kp_2, cv::Scalar(155, 0, 0), 1);
+            cv::circle(img12_show, kp_1, 2, cv::Scalar(255, 0, 0), -1);
+            cv::circle(img12_show, kp_2, 2, cv::Scalar(255, 0, 0), -1);
         }
 
         cv::resize(img12_show, img12_show, cv::Size(), 0.66, 0.66);
 
-        cv::putText(img12_show, to_string(kps1_l_desc.size()) + "|" + to_string(kps1_l_stereo.size()) + ":" + to_string(kps2_l_stereo.size()),
+        cv::putText(img12_show, to_string(kps1_l_matched.size()) + "|" + to_string(kps1_l_stereo.size()) + ":" + to_string(kps2_l_stereo.size()),
                     cv::Point(3, 17), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 0, 255), 2);
 
         cv::imshow("Descriptor Matches", img12_show);
@@ -158,7 +169,7 @@ namespace RPE
         if (pose_publisher_set.find(topic) == pose_publisher_set.end())
         {
             pose_publisher_set[topic] = nh.advertise<nav_msgs::Odometry>(topic, 10);
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            std::this_thread::sleep_for(std::chrono::seconds(2));
             pose_publisher_set[topic].publish(pose_msg);
         }
         else
@@ -198,7 +209,7 @@ namespace RPE
         if (kps3d_publisher_set.find(topic) == kps3d_publisher_set.end())
         {
             kps3d_publisher_set[topic] = nh.advertise<sensor_msgs::PointCloud2>(topic, 10);
-            std::this_thread::sleep_for(std::chrono::seconds(1));
+            std::this_thread::sleep_for(std::chrono::seconds(2));
             kps3d_publisher_set[topic].publish(kps3d_msg);
         }
         else

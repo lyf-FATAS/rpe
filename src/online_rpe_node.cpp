@@ -248,8 +248,8 @@ int main(int argc, char **argv)
                 bool recover_pose_success = estimator.estimate(img1_l, img1_r, img2_l, img2_r, R12, t12);
 
                 visualizer->draw(draw_type);
-                // visualizer->pubKps3d(RPE::kps3d1_debug, Matrix3d::Identity(), Vector3d::Zero(), "kps3d1_debug");
-                // visualizer->pubKps3d(RPE::kps3d2_debug, Matrix3d::Identity(), Vector3d::Zero(), "kps3d2_debug");
+                // visualizer->pubKps3d(RPE::kps3d1_stereo, Matrix3d::Identity(), Vector3d::Zero(), "kps3d1_stereo");
+                // visualizer->pubKps3d(RPE::kps3d2_stereo, Matrix3d::Identity(), Vector3d::Zero(), "kps3d2_stereo");
 
                 if (recv_odom)
                 {
@@ -318,8 +318,8 @@ int main(int argc, char **argv)
             bool recover_pose_success = estimator.estimate(img1_l, img1_r, img2_l, img2_r, R12, t12);
 
             visualizer->draw(draw_type);
-            // visualizer->pubKps3d(RPE::kps3d1_debug, Matrix3d::Identity(), Vector3d::Zero(), "kps3d1_debug");
-            // visualizer->pubKps3d(RPE::kps3d2_debug, Matrix3d::Identity(), Vector3d::Zero(), "kps3d2_debug");
+            // visualizer->pubKps3d(RPE::kps3d1_stereo, Matrix3d::Identity(), Vector3d::Zero(), "kps3d1_stereo");
+            // visualizer->pubKps3d(RPE::kps3d2_stereo, Matrix3d::Identity(), Vector3d::Zero(), "kps3d2_stereo");
 
             if (recv_odom && recover_pose_success)
             {
