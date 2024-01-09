@@ -92,12 +92,12 @@ weight_desc_vs_consis: 0.5
 weight_len_vs_ang: 0.2
 diff_len_th: 0.33
 diff_ang_th: 45
-GRB_log_to_console: 0
+GRB_log_to_console: 1
 GRB_mip_focus: 1
 GRB_heuristics: 0.05
 GRB_presolve: 2
 GRB_presparsify: 1
-GRB_time_limit: 5
+GRB_time_limit: 10
 
 #----------------------------------------------------------------------
 # Parameters of Ransac
@@ -113,6 +113,12 @@ mono_ransac_max_iterations: 300
 mono_ransac_threshold: 0.00001
 
 stereo_ransac_max_iterations: 300
-stereo_ransac_threshold: 0.3
+stereo_ransac_threshold: 0.8
 
 enable_nlopt: 0
+
+#----------------------------------------------------------------------
+# Parameters of Solvers
+#----------------------------------------------------------------------
+
+mu: 0.5

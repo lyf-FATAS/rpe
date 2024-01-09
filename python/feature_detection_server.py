@@ -166,9 +166,6 @@ def detect_features(request):
         np.transpose(pred["descriptors"]), encoding="passthrough"
     )
 
-    # print(pred["keypoints"])
-    # print(np.transpose(pred["descriptors"]))
-
     return resp
 
 

@@ -383,7 +383,7 @@ namespace RPE
                                                   (weight_len_vs_ang * 1.0 / diff_len_th * (diff_len_th - diff_len) +
                                                    (1.0 - weight_len_vs_ang) * 1.0 / diff_ang_th * (diff_ang_th - diff_ang)));
 
-                            CHECK(!isnan(consistency.back()) && !isinf(consistency.back())) << "Consistency = Nan or Inf #^#";
+                            CHECK(!isnan(consistency.back()) && !isinf(consistency.back()));
                         }
                     }
                 }

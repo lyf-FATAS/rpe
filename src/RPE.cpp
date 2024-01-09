@@ -124,6 +124,9 @@ namespace RPE
         settings["stereo_ransac_threshold"] >> stereo_ransacer->threshold_;
 
         settings["enable_nlopt"] >> enable_nlopt;
+
+        R_solver = make_unique<RSolver>();
+        A_solver = make_unique<ASolver>(settings_path);
     }
 
     bool RPE::estimate(const cv::Mat &img1_l_, const cv::Mat &img1_r_,
@@ -161,9 +164,13 @@ namespace RPE
         kps2_l_stereo.clear();
         kps2_r_stereo.clear();
 
-        kps1_l_desc.clear();
-        kps2_l_desc.clear();
+        kps1_l_matched.clear();
+        kps2_l_matched.clear();
 
+        kps1_l_refined.clear();
+        kps2_l_refined.clear();
+
+        vector<int> match12, match21;
         if (enable_hloc_matcher)
         {
             /*******************************************************/
@@ -171,7 +178,7 @@ namespace RPE
             /*******************************************************/
 
             cv::Mat kps1_l_, kps1_r_, kps2_l_, kps2_r_;
-            vector<int> match_stereo1, match_stereo2, match12;
+            vector<int> match_stereo1, match_stereo2;
 
             // Call the HLOC matching service
             rpe::Matching matching_srv;
@@ -242,14 +249,14 @@ namespace RPE
             CHECK_EQ(match12.size(), kps1_l.size());
 
             // Compute match2->1 from match1->2
-            vector<int> match21(kps2_l.size(), -1);
+            match21 = vector<int>(kps2_l.size(), -1);
             for (size_t i = 0; i < match12.size(); i++)
                 if (match12[i] >= 0)
                     match21[match12[i]] = i;
 
             // Compute depth1 given stereo matches from HLOC
             extractKpsDepth(match_stereo1, kps1_l, kps1_r, kps3d1);
-            kps3d1_debug = kps3d1;
+            kps3d1_stereo = kps3d1;
 
             size_t idx = 0;
             for (size_t i = 0; i < match_stereo1.size(); i++)
@@ -273,7 +280,7 @@ namespace RPE
 
             // Compute depth2 given stereo matches from HLOC
             extractKpsDepth(match_stereo2, kps2_l, kps2_r, kps3d2);
-            kps3d2_debug = kps3d2;
+            kps3d2_stereo = kps3d2;
 
             idx = 0;
             for (size_t i = 0; i < match_stereo2.size(); i++)
@@ -318,8 +325,8 @@ namespace RPE
             rearrangeMatchedVec(match12, kps3d1, kps3d2);
 
             // Backup features after descriptor matching
-            kps1_l_desc = kps1_l;
-            kps2_l_desc = kps2_l;
+            kps1_l_matched = kps1_l;
+            kps2_l_matched = kps2_l;
 
             if (kps1_l.size() < 15 || kps2_l.size() < 15)
             {
@@ -510,8 +517,8 @@ namespace RPE
 
             extractKpsDepth(kps1_l, kps1_r, desc1_l, desc1_r, kps3d1);
             extractKpsDepth(kps2_l, kps2_r, desc2_l, desc2_r, kps3d2);
-            kps3d1_debug = kps3d1;
-            kps3d2_debug = kps3d2;
+            kps3d1_stereo = kps3d1;
+            kps3d2_stereo = kps3d2;
 
             t4 = chrono::high_resolution_clock::now();
 
@@ -532,8 +539,8 @@ namespace RPE
             t5 = chrono::high_resolution_clock::now();
 
             // Backup features after descriptor matching
-            kps1_l_desc = kps1_l;
-            kps2_l_desc = kps2_l;
+            kps1_l_matched = kps1_l;
+            kps2_l_matched = kps2_l;
 
             if (kps1_l.size() < 15 || kps2_l.size() < 15)
             {
@@ -551,16 +558,42 @@ namespace RPE
         bool recover_pose_success = false;
         if (geometricVerificationNister(kps1_l, kps2_l, R12_mono))
         {
-            if (recoverPose(kps3d1, kps3d2, R12_mono, R12, t12))
+            if (recoverPose(kps3d1, kps3d2, R12_mono, R12_stereo, t12_stereo))
             {
                 recover_pose_success = true;
-                LOG(INFO) << "Recover pose succeeded :)";
+
+                R12 = R12_stereo;
+                t12 = t12_stereo;
+
+                LOG(INFO) << "RANSAC pose recovery succeeded :)";
             }
         }
 
         auto t6 = chrono::high_resolution_clock::now();
 
-        // Print running time
+        /****************************************************/
+        /****** Improve Matching with Pose Information ******/
+        /****************************************************/
+
+        // CHECK_EQ(match12.size(), kps3d1_stereo.size());
+        // CHECK_EQ(match21.size(), kps3d2_stereo.size());
+        // alternateOpt(kps3d1_stereo, kps3d2_stereo, match12, R12, t12);
+
+        vector<int> match12_(kps3d1.size());
+        for (size_t i = 0; i < match12_.size(); i++)
+            match12_[i] = i;
+        alternateOpt(kps3d1, kps3d2, match12_, R12, t12);
+
+        rearrangeMatchedVec(match12_, kps1_l, kps2_l);
+
+        // Backup features after alternate optimization
+        kps1_l_refined = kps1_l;
+        kps2_l_refined = kps2_l;
+
+        /********************************/
+        /****** Print Running Time ******/
+        /********************************/
+
         if (enable_hloc_matcher)
         {
             LOG(INFO) << "[Histogram Equalization]: "
@@ -669,17 +702,17 @@ namespace RPE
     }
 
     template <typename T>
-    inline void RPE::rearrangeMatchedVec(const vector<int> &match, vector<T> &vec1, vector<T> &vec2)
+    inline void RPE::rearrangeMatchedVec(const vector<int> &match12, vector<T> &vec1, vector<T> &vec2)
     {
         vector<T> vec2_temp;
         size_t idx = 0;
-        for (size_t i = 0; i < match.size(); i++)
+        for (size_t i = 0; i < match12.size(); i++)
         {
-            if (match[i] >= 0)
+            if (match12[i] >= 0)
             {
                 // Rearrange elements
                 vec1[idx++] = vec1[i]; // Borrowed from VINS-Fusion
-                vec2_temp.emplace_back(vec2[match[i]]);
+                vec2_temp.emplace_back(vec2[match12[i]]);
             }
         }
         vec1.resize(idx);
@@ -748,7 +781,7 @@ namespace RPE
     }
 
     bool RPE::recoverPose(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2, const Matrix3d &R12_mono,
-                              Matrix3d &R12, Vector3d &t12)
+                          Matrix3d &R12_stereo, Vector3d &t12_stereo)
     {
         CHECK_EQ(kps3d1.size(), kps3d2.size());
 
@@ -769,8 +802,8 @@ namespace RPE
         bool ransac_success = stereo_ransacer->computeModel(ransac_verbosity_level);
         const size_t n_inliers = stereo_ransacer->inliers_.size();
 
-        Matrix3d R12_stereo;
-        Vector3d t12_stereo;
+        Matrix3d R12_;
+        Vector3d t12_;
         if (ransac_success)
         {
             if (n_inliers >= ransac_min_inliers)
@@ -778,8 +811,8 @@ namespace RPE
                 LOG(INFO) << "Stereo RANSAC has " << n_inliers << " inliers";
 
                 opengv::transformation_t T12 = stereo_ransacer->model_coefficients_;
-                R12_stereo = T12.block<3, 3>(0, 0);
-                t12_stereo = T12.col(3);
+                R12_ = T12.block<3, 3>(0, 0);
+                t12_ = T12.col(3);
             }
             else
             {
@@ -808,14 +841,46 @@ namespace RPE
             adapter_inlier.setR12(R12_mono);
 
             opengv::transformation_t T12 = opengv::point_cloud::optimize_nonlinear(adapter_inlier);
-            R12 = T12.block<3, 3>(0, 0);
-            t12 = T12.col(3);
+            R12_stereo = T12.block<3, 3>(0, 0);
+            t12_stereo = T12.col(3);
         }
         else
         {
-            R12 = R12_stereo;
-            t12 = t12_stereo;
+            R12_stereo = R12_;
+            t12_stereo = t12_;
         }
         return true;
+    }
+
+    void RPE::alternateOpt(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2,
+                           vector<int> &match12, Matrix3d &R12, Vector3d &t12)
+    {
+        // Convert the match vector to match matrix
+        const size_t N1 = kps3d1.size();
+        const size_t N2 = kps3d2.size();
+        MatrixXd A(N2, N1), A_tilde(N2, N1);
+        A.setZero();
+        A_tilde.setZero();
+        for (size_t i = 0; i < N1; i++)
+            for (size_t j = 0; j < N2; j++)
+                if (match12[i] == j)
+                {
+                    A(j, i) = 1;
+                    A_tilde(j, i) = 1;
+                }
+
+        for (size_t iteration = 0; iteration < 1; iteration++)
+        {
+            A_solver->solve(kps3d1, kps3d2, R12, t12, A_tilde, A);
+        }
+
+        match12 = vector<int>(N1, -1);
+        for (size_t i = 0; i < N1; i++)
+            for (size_t j = 0; j < N2; j++)
+                if (A(j, i))
+                {
+                    match12[i] = j;
+                    break;
+                }
     }
 }

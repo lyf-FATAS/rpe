@@ -131,20 +131,31 @@ namespace RPE
         cv::Mat img12_show;
         cv::vconcat(img1_l_show, img2_l_show, img12_show);
 
-        for (size_t i = 0; i < kps1_l_desc.size(); i++)
+        for (size_t i = 0; i < kps1_l_matched.size(); i++)
         {
-            const cv::Point &kp_1 = kps1_l_desc[i].pt;
-            const cv::Point &kp_2_ = kps2_l_desc[i].pt;
+            const cv::Point &kp_1 = kps1_l_matched[i].pt;
+            const cv::Point &kp_2_ = kps2_l_matched[i].pt;
             const cv::Point kp_2(kp_2_.x, kp_2_.y + img1_l_show.rows);
 
-            // cv::line(img12_show, kp_1, kp_2, cv::Scalar(0, 155, 0), 1);
+            cv::line(img12_show, kp_1, kp_2, cv::Scalar(0, 155, 0), 1);
             cv::circle(img12_show, kp_1, 2, cv::Scalar(0, 255, 0), -1);
             cv::circle(img12_show, kp_2, 2, cv::Scalar(0, 255, 0), -1);
         }
 
+        for (size_t i = 0; i < kps1_l_refined.size(); i++)
+        {
+            const cv::Point &kp_1 = kps1_l_refined[i].pt;
+            const cv::Point &kp_2_ = kps2_l_refined[i].pt;
+            const cv::Point kp_2(kp_2_.x, kp_2_.y + img1_l_show.rows);
+
+            cv::line(img12_show, kp_1, kp_2, cv::Scalar(155, 0, 0), 1);
+            cv::circle(img12_show, kp_1, 2, cv::Scalar(255, 0, 0), -1);
+            cv::circle(img12_show, kp_2, 2, cv::Scalar(255, 0, 0), -1);
+        }
+
         cv::resize(img12_show, img12_show, cv::Size(), 0.66, 0.66);
 
-        cv::putText(img12_show, to_string(kps1_l_desc.size()) + "|" + to_string(kps1_l_stereo.size()) + ":" + to_string(kps2_l_stereo.size()),
+        cv::putText(img12_show, to_string(kps1_l_matched.size()) + "|" + to_string(kps1_l_stereo.size()) + ":" + to_string(kps2_l_stereo.size()),
                     cv::Point(3, 17), cv::FONT_HERSHEY_SIMPLEX, 0.6, cv::Scalar(0, 0, 255), 2);
 
         cv::imshow("Descriptor Matches", img12_show);
