@@ -15,6 +15,7 @@ namespace RPE
         settings["GRB_log_to_console"] >> GRB_log_to_console;
         settings["GRB_time_limit"] >> GRB_time_limit;
         settings["mu"] >> mu;
+        settings["nu"] >> nu;
     }
 
     void ASolver::solve(const vector<Vector3d> &P1, const vector<Vector3d> &P2, const Matrix3d &R12, const Vector3d &t12, const MatrixXd &A_tilde, MatrixXd &A)
@@ -27,12 +28,16 @@ namespace RPE
         const size_t N1 = P1.size();
         const size_t N2 = P2.size();
 
-        vector<double> p21_dot_p21, p2_dot_p2, p21_dot_p2;
-        computeDotProducts(P1, P2, R12, t12, p21_dot_p21, p2_dot_p2, p21_dot_p2);
+        // These dot products are required in quadratic obj construction
+        // vector<double> p21_dot_p21, p2_dot_p2, p21_dot_p2;
+        // computeDotProducts(P1, P2, R12, t12, p21_dot_p21, p2_dot_p2, p21_dot_p2);
 
-        /***************************/
-        /****** Solve A by QP ******/
-        /***************************/
+        MatrixXd D;
+        computeDistanceMatrix(P1, P2, R12, t12, D);
+
+        /******************************/
+        /****** Solve A by QP/LP ******/
+        /******************************/
         try
         {
             GRBEnv env;
@@ -46,8 +51,12 @@ namespace RPE
                     A_[i * N1 + j] = model.addVar(
                         0.0, 1.0, 0.0, GRB_BINARY, "match_" + to_string(j) + to_string(i));
 
-            GRBQuadExpr obj;
-            computeLinearLeastSquaresObjective(N1, N2, A_, A_tilde, mu, p21_dot_p21, p2_dot_p2, p21_dot_p2, obj);
+            // GRBQuadExpr obj;
+            // computeLinearLeastSquaresObjective(p21_dot_p21, p2_dot_p2, p21_dot_p2, mu, A_tilde, A_, obj);
+
+            GRBLinExpr obj;
+            computeLinearObjective(D, mu, A_tilde, A_, obj);
+
             model.setObjective(obj, GRB_MINIMIZE);
 
             // Doubly stochastic constraints for the matching matrix A
@@ -101,7 +110,7 @@ namespace RPE
 
         vector<Vector3d> P21;
         for (size_t i = 0; i < N1; i++)
-            P21.emplace_back(R12 * P1[i] + t12);
+            P21.emplace_back(R12.transpose() * (P1[i] - t12));
 
         for (size_t i = 0; i < N1; i++)
             p21_dot_p21[i] = P21[i].transpose() * P21[i];
@@ -115,10 +124,13 @@ namespace RPE
                 p21_dot_p2[i * N2 + j] = P21[i].transpose() * P2[j];
     }
 
-    void ASolver::computeLinearLeastSquaresObjective(const size_t N1, const size_t N2, const vector<GRBVar> &A, const MatrixXd &A_tilde, const double mu,
-                                                     const vector<double> &p21_dot_p21, const vector<double> &p2_dot_p2, const vector<double> &p21_dot_p2,
+    void ASolver::computeLinearLeastSquaresObjective(const vector<double> &p21_dot_p21, const vector<double> &p2_dot_p2, const vector<double> &p21_dot_p2, const double mu,
+                                                     const MatrixXd &A_tilde, const vector<GRBVar> &A,
                                                      GRBQuadExpr &obj)
     {
+        const size_t N1 = A_tilde.cols();
+        const size_t N2 = A_tilde.rows();
+
         obj = 0;
 
         // Quadratic terms
@@ -128,9 +140,6 @@ namespace RPE
             {
                 for (size_t k = 0; k < N1; k++)
                 {
-                    const GRBVar &xm = A[i * N1 + k];
-                    const GRBVar &xn = A[j * N1 + k];
-
                     double coefficient;
                     if (i == j)
                     {
@@ -141,7 +150,7 @@ namespace RPE
                         coefficient = p21_dot_p21[k] + p2_dot_p2[i * N2 + j] - p21_dot_p2[k * N2 + i] - p21_dot_p2[k * N2 + j];
                     }
                     if (coefficient != 0)
-                        obj += coefficient * xm * xn;
+                        obj += coefficient * A[i * N1 + k] * A[j * N1 + k];
                 }
             }
         }
@@ -154,6 +163,41 @@ namespace RPE
                 double coefficient = -2 * mu * A_tilde(i, j);
                 if (coefficient != 0)
                     obj += coefficient * A[i * N1 + j];
+            }
+        }
+    }
+
+    void ASolver::computeDistanceMatrix(const vector<Vector3d> &P1, const vector<Vector3d> &P2, const Matrix3d &R12, const Vector3d &t12, MatrixXd &D)
+    {
+        const size_t N1 = P1.size();
+        const size_t N2 = P2.size();
+
+        vector<Vector3d> P21;
+        for (size_t i = 0; i < N1; i++)
+            P21.emplace_back(R12.transpose() * (P1[i] - t12));
+
+        D.resize(N2, N1);
+        for (size_t i = 0; i < N2; i++)
+            for (size_t j = 0; j < N1; j++)
+                D(i, j) = (P2[i] - P21[j]).transpose() * (P2[i] - P21[j]);
+    }
+
+    void ASolver::computeLinearObjective(const MatrixXd &D, const double mu, const MatrixXd &A_tilde, const vector<GRBVar> &A, GRBLinExpr &obj)
+    {
+        CHECK_EQ(D.rows(), A_tilde.rows());
+        CHECK_EQ(D.cols(), A_tilde.cols());
+
+        const size_t N1 = A_tilde.cols();
+        const size_t N2 = A_tilde.rows();
+
+        obj = 0;
+
+        for (size_t i = 0; i < N2; i++)
+        {
+            for (size_t j = 0; j < N1; j++)
+            {
+                double coefficient = D(i, j) - mu * A_tilde(i, j) - nu;
+                obj += coefficient * A[i * N1 + j];
             }
         }
     }
