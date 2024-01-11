@@ -321,6 +321,13 @@ namespace RPE
                 return false;
             }
 
+            // Filter out far points
+            CHECK_EQ(match12.size(), kps3d1.size());
+            for (size_t i = 0; i < match12.size(); i++)
+                if (match12[i] >= 0)
+                    if (kps3d1[i].z() > far_pt_thr || kps3d2[match12[i]].z() > far_pt_thr)
+                        match12[i] = -1;
+
             rearrangeMatchedVec(match12, kps1_l, kps2_l);
             rearrangeMatchedVec(match12, kps3d1, kps3d2);
 
@@ -553,8 +560,6 @@ namespace RPE
         /****** Geometric Verification ******/
         /************************************/
 
-        filterFarPts(kps3d1, kps3d2);
-
         bool recover_pose_success = false;
         if (geometricVerificationNister(kps1_l, kps2_l, R12_mono))
         {
@@ -575,20 +580,29 @@ namespace RPE
         /****** Improve Matching with Pose Information ******/
         /****************************************************/
 
-        // CHECK_EQ(match12.size(), kps3d1_stereo.size());
-        // CHECK_EQ(match21.size(), kps3d2_stereo.size());
-        // alternateOpt(kps3d1_stereo, kps3d2_stereo, match12, R12, t12);
+        CHECK_EQ(match12.size(), kps3d1_stereo.size());
+        CHECK_EQ(match21.size(), kps3d2_stereo.size());
+        alternateOpt(kps3d1_stereo, kps3d2_stereo, match12, R12, t12);
 
-        vector<int> match12_(kps3d1.size());
-        for (size_t i = 0; i < match12_.size(); i++)
-            match12_[i] = i;
-        alternateOpt(kps3d1, kps3d2, match12_, R12, t12);
-
-        rearrangeMatchedVec(match12_, kps1_l, kps2_l);
+        vector<cv::KeyPoint> kps1_l_refined_, kps2_l_refined_;
+        kps1_l_refined_ = kps1_l_stereo;
+        kps2_l_refined_ = kps2_l_stereo;
+        rearrangeMatchedVec(match12, kps1_l_refined_, kps2_l_refined_);
 
         // Backup features after alternate optimization
-        kps1_l_refined = kps1_l;
-        kps2_l_refined = kps2_l;
+        kps1_l_refined = kps1_l_refined_;
+        kps2_l_refined = kps2_l_refined_;
+
+        // vector<int> match12_(kps3d1.size());
+        // for (size_t i = 0; i < match12_.size(); i++)
+        //     match12_[i] = i;
+        // alternateOpt(kps3d1, kps3d2, match12_, R12, t12);
+
+        // rearrangeMatchedVec(match12_, kps1_l, kps2_l);
+
+        // // Backup features after alternate optimization
+        // kps1_l_refined = kps1_l;
+        // kps2_l_refined = kps2_l;
 
         /********************************/
         /****** Print Running Time ******/
@@ -666,9 +680,23 @@ namespace RPE
         }
     }
 
-    void RPE::extractKpsDepth(const vector<int> &stereo_match, vector<cv::KeyPoint> &kps_l, vector<cv::KeyPoint> &kps_r,
+    void RPE::extractKpsDepth(vector<int> &stereo_match, vector<cv::KeyPoint> &kps_l, vector<cv::KeyPoint> &kps_r,
                               vector<Vector3d> &kps3d)
     {
+        // Filter out points with inf depth
+        for (size_t i = 0; i < kps_l.size(); i++)
+        {
+            if (stereo_match[i] >= 0)
+            {
+                const double ul = kps_l[i].pt.x;
+                const double ur = kps_r[stereo_match[i]].pt.x;
+
+                double disparity = ul - ur;
+                if (-1e-5 < disparity && disparity < 1e-5)
+                    stereo_match[i] = -1;
+            }
+        }
+
         rearrangeMatchedVec(stereo_match, kps_l, kps_r);
 
         // Compute depth
@@ -717,25 +745,6 @@ namespace RPE
         }
         vec1.resize(idx);
         vec2 = vec2_temp;
-    }
-
-    void RPE::filterFarPts(vector<Vector3d> &kps3d1, vector<Vector3d> &kps3d2)
-    {
-        CHECK_EQ(kps3d1.size(), kps3d2.size());
-
-        size_t ori_size = kps3d1.size(), idx = 0;
-        for (size_t i = 0; i < kps3d1.size(); i++)
-        {
-            if (kps3d1[i].z() <= far_pt_thr && kps3d2[i].z() <= far_pt_thr)
-            {
-                kps3d1[idx] = kps3d1[i];
-                kps3d2[idx++] = kps3d2[i];
-            }
-        }
-        kps3d1.resize(idx);
-        kps3d2.resize(idx);
-
-        LOG(INFO) << "Filter out " << ori_size - idx << " far points";
     }
 
     bool RPE::geometricVerificationNister(const vector<cv::KeyPoint> &kps1, const vector<cv::KeyPoint> &kps2, Matrix3d &R12_mono)
@@ -874,6 +883,7 @@ namespace RPE
             A_solver->solve(kps3d1, kps3d2, R12, t12, A_tilde, A);
         }
 
+        // Convert the match matrix back to match vector
         match12 = vector<int>(N1, -1);
         for (size_t i = 0; i < N1; i++)
             for (size_t j = 0; j < N2; j++)

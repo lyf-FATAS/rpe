@@ -40,7 +40,7 @@ namespace RPE
                              vector<cv::Mat> &desc_l, vector<cv::Mat> &desc_r,
                              vector<Vector3d> &kps3d);
 
-        void extractKpsDepth(const vector<int> &match, vector<cv::KeyPoint> &kps_l, vector<cv::KeyPoint> &kps_r,
+        void extractKpsDepth(vector<int> &match, vector<cv::KeyPoint> &kps_l, vector<cv::KeyPoint> &kps_r,
                              vector<Vector3d> &kps3d);
 
         void matchByDescriptor(vector<cv::KeyPoint> &kps1, vector<cv::KeyPoint> &kps2,
@@ -49,8 +49,6 @@ namespace RPE
 
         template <typename T>
         inline void rearrangeMatchedVec(const vector<int> &match12, vector<T> &vec1, vector<T> &vec2);
-
-        void filterFarPts(vector<Vector3d> &kps3d1, vector<Vector3d> &kps3d2);
 
         bool geometricVerificationNister(const vector<cv::KeyPoint> &kps1, const vector<cv::KeyPoint> &kps2, Matrix3d &R12_mono); // Borrowed from Kimera-VIO
 
