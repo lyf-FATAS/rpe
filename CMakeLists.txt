@@ -31,6 +31,7 @@ find_package(opengv REQUIRED PATHS /home/laji/Apps/opengv/build)
 # Find glog: https://github.com/google/glog/issues/519
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(glog REQUIRED libglog)
+find_package(Ceres REQUIRED PATHS /home/laji/Apps/ceres-solver-2.1.0/build)
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -138,6 +139,7 @@ include_directories(
   /home/laji/Apps/gurobi1002/linux64/include
   ${PCL_INCLUDE_DIRS}
   ${glog_INCLUDE_DIRS}
+  ${CERES_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
@@ -180,6 +182,7 @@ target_link_libraries(online_rpe_node
   /home/laji/Apps/gurobi1002/linux64/lib/libgurobi100.so
   opengv
   ${glog_LIBRARIES}
+  ${CERES_LIBRARIES}
 )
 
 #############

@@ -50,10 +50,10 @@ namespace RPE
         template <typename T>
         inline void rearrangeMatchedVec(const vector<int> &match12, vector<T> &vec1, vector<T> &vec2);
 
-        bool geometricVerificationNister(const vector<cv::KeyPoint> &kps1, const vector<cv::KeyPoint> &kps2, Matrix3d &R12_mono); // Borrowed from Kimera-VIO
+        bool geometricVerificationNister(const vector<cv::KeyPoint> &kps1, const vector<cv::KeyPoint> &kps2, Matrix3d &R12_mono, vector<int> &inliers_mono); // Borrowed from Kimera-VIO
 
-        bool recoverPose(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2, const Matrix3d &R12_mono,
-                         Matrix3d &R12_stereo, Vector3d &t12_stereo); // Borrowed from Kimera-VIO
+        bool recoverPose(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2, const Matrix3d &R12_mono, const vector<int> &inliers_mono,
+                         Matrix3d &R12_stereo, Vector3d &t12_stereo, vector<int> &inliers_stereo); // Borrowed from Kimera-VIO
 
         void alternateOpt(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2,
                           vector<int> &match12, Matrix3d &R12, Vector3d &t12);
@@ -103,7 +103,9 @@ namespace RPE
 
         bool enable_nlopt;
 
-        unique_ptr<RSolver> R_solver;
+        bool enable_outdoor_mode;
+
         unique_ptr<ASolver> A_solver;
+        unique_ptr<TSolver> T_solver;
     };
 }

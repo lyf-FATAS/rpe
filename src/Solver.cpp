@@ -5,13 +5,10 @@ using namespace std;
 
 namespace RPE
 {
-    RSolver::RSolver() {}
-
-    void RSolver::solve() {}
-
     ASolver::ASolver(string settings_path)
     {
         cv::FileStorage settings(settings_path, cv::FileStorage::READ);
+        settings["outdoor_mode"] >> enable_outdoor_mode;
         settings["GRB_log_to_console"] >> GRB_log_to_console;
         settings["GRB_time_limit"] >> GRB_time_limit;
         settings["mu"] >> mu;
@@ -52,10 +49,10 @@ namespace RPE
                         0.0, 1.0, 0.0, GRB_BINARY, "match_" + to_string(j) + to_string(i));
 
             // GRBQuadExpr obj;
-            // computeLinearLeastSquaresObjective(p21_dot_p21, p2_dot_p2, p21_dot_p2, mu, A_tilde, A_, obj);
+            // computeLinearLeastSquaresObjective(p21_dot_p21, p2_dot_p2, p21_dot_p2, A_tilde, A_, obj);
 
             GRBLinExpr obj;
-            computeLinearObjective(D, mu, A_tilde, A_, obj);
+            computeLinearObjective(D, A, A_tilde, A_, obj);
 
             model.setObjective(obj, GRB_MINIMIZE);
 
@@ -79,7 +76,7 @@ namespace RPE
             // Set the initial value of A
             for (size_t i = 0; i < N2; i++)
                 for (size_t j = 0; j < N1; j++)
-                    A_[i * N1 + j].set(GRB_DoubleAttr_Start, (bool)A(i, j));
+                    A_[i * N1 + j].set(GRB_DoubleAttr_Start, A(i, j));
 
             model.set(GRB_DoubleParam_TimeLimit, GRB_time_limit);
             model.optimize();
@@ -124,7 +121,7 @@ namespace RPE
                 p21_dot_p2[i * N2 + j] = P21[i].transpose() * P2[j];
     }
 
-    void ASolver::computeLinearLeastSquaresObjective(const vector<double> &p21_dot_p21, const vector<double> &p2_dot_p2, const vector<double> &p21_dot_p2, const double mu,
+    void ASolver::computeLinearLeastSquaresObjective(const vector<double> &p21_dot_p21, const vector<double> &p2_dot_p2, const vector<double> &p21_dot_p2,
                                                      const MatrixXd &A_tilde, const vector<GRBVar> &A,
                                                      GRBQuadExpr &obj)
     {
@@ -182,7 +179,7 @@ namespace RPE
                 D(i, j) = (P2[i] - P21[j]).transpose() * (P2[i] - P21[j]);
     }
 
-    void ASolver::computeLinearObjective(const MatrixXd &D, const double mu, const MatrixXd &A_tilde, const vector<GRBVar> &A, GRBLinExpr &obj)
+    void ASolver::computeLinearObjective(const MatrixXd &D, const MatrixXd &A, const MatrixXd &A_tilde, const vector<GRBVar> &A_, GRBLinExpr &obj)
     {
         CHECK_EQ(D.rows(), A_tilde.rows());
         CHECK_EQ(D.cols(), A_tilde.cols());
@@ -190,15 +187,103 @@ namespace RPE
         const size_t N1 = A_tilde.cols();
         const size_t N2 = A_tilde.rows();
 
+        // Compute current number of matches
+        size_t n_matches = 0;
+        for (size_t i = 0; i < N2; i++)
+            for (size_t j = 0; j < N1; j++)
+                if (A(i, j))
+                {
+                    n_matches++;
+                    break;
+                }
+
         obj = 0;
 
+        if (enable_outdoor_mode && n_matches < 250) // Notable hyperparameter...
+        {
+            for (size_t i = 0; i < N2; i++)
+            {
+                for (size_t j = 0; j < N1; j++)
+                {
+                    double coefficient = D(i, j) - mu * A_tilde(i, j) - nu;
+                    obj += coefficient * A_[i * N1 + j];
+                }
+            }
+        }
+        else
+        {
+            for (size_t i = 0; i < N2; i++)
+            {
+                for (size_t j = 0; j < N1; j++)
+                {
+                    double coefficient = D(i, j) - mu * A_tilde(i, j) - 0.1 * nu;
+                    obj += coefficient * A_[i * N1 + j];
+                }
+            }
+        }
+    }
+
+    TSolver::TSolver(string settings_path)
+    {
+        cv::FileStorage settings(settings_path, cv::FileStorage::READ);
+        settings["Ceres_log_to_console"] >> Ceres_log_to_console;
+    }
+
+    void TSolver::solve(const vector<Vector3d> &P1, const vector<Vector3d> &P2, const MatrixXd &A, Matrix3d &R12, Vector3d &t12)
+    {
+        CHECK_EQ(P1.size(), A.cols());
+        CHECK_EQ(P2.size(), A.rows());
+
+        const size_t N1 = A.cols();
+        const size_t N2 = A.rows();
+
+        Quaterniond q12(R12);
+
+        ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
+        ceres::Manifold *quaternion_manifold = new ceres::EigenQuaternionManifold;
+
+        ceres::Problem problem;
         for (size_t i = 0; i < N2; i++)
         {
             for (size_t j = 0; j < N1; j++)
             {
-                double coefficient = D(i, j) - mu * A_tilde(i, j) - nu;
-                obj += coefficient * A[i * N1 + j];
+                if (A(i, j))
+                {
+                    ceres::CostFunction *cost_function = PointCloudRegistrationErrorTerm::Create(P1[j], P2[i]);
+                    problem.AddResidualBlock(cost_function, loss_function, q12.coeffs().data(), t12.data());
+                }
             }
         }
+        problem.SetManifold(q12.coeffs().data(), quaternion_manifold);
+
+        ceres::Solver::Options options;
+        options.max_num_iterations = 500;
+        options.linear_solver_type = ceres::DENSE_SCHUR;
+
+        ceres::Solver::Summary summary;
+        ceres::Solve(options, &problem, &summary);
+
+        if (Ceres_log_to_console)
+            cout << summary.FullReport() << endl;
+
+        R12 = q12.toRotationMatrix();
+    }
+
+    template <typename D>
+    bool PointCloudRegistrationErrorTerm::operator()(const D *const q12_ptr, const D *const t12_ptr, D *residuals_ptr) const
+    {
+        Map<const Quaternion<D>> q12(q12_ptr);
+        Map<const Matrix<D, 3, 1>> t12(t12_ptr);
+
+        Matrix<D, 3, 1> p12 = q12 * p2.template cast<D>() + t12;
+        residuals_ptr[0] = (p1.template cast<D>() - p12).norm();
+
+        return true;
+    }
+
+    ceres::CostFunction *PointCloudRegistrationErrorTerm::Create(const Vector3d &p1, const Vector3d &p2)
+    {
+        return new ceres::AutoDiffCostFunction<PointCloudRegistrationErrorTerm, 1, 4, 3>(
+            new PointCloudRegistrationErrorTerm(p1, p2));
     }
 }
