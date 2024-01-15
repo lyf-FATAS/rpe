@@ -278,9 +278,9 @@ int main(int argc, char **argv)
 
                         visualizer->pubPose(R2, t2, "odom2_estimate");
 
-                        visualizer->pubKps3d(RPE::kps3d1, odom1_, "kps3d1");
-                        visualizer->pubKps3d(RPE::kps3d2, odom2_, "kps3d2");
-                        visualizer->pubKps3d(RPE::kps3d2, R2, t2, "kps3d2_estimate");
+                        visualizer->pubKps3d(RPE::kps3d1_matched, odom1_, "kps3d1");
+                        visualizer->pubKps3d(RPE::kps3d2_matched, odom2_, "kps3d2");
+                        visualizer->pubKps3d(RPE::kps3d2_matched, R2, t2, "kps3d2_estimate");
                     }
                     else
                     {
@@ -346,9 +346,9 @@ int main(int argc, char **argv)
 
                 visualizer->pubPose(R2, t2, "odom2_estimate");
 
-                visualizer->pubKps3d(RPE::kps3d1, odom1_, "kps3d1");
-                visualizer->pubKps3d(RPE::kps3d2, odom2_, "kps3d2");
-                visualizer->pubKps3d(RPE::kps3d2, R2, t2, "kps3d2_estimate");
+                visualizer->pubKps3d(RPE::kps3d1_matched, odom1_, "kps3d1");
+                visualizer->pubKps3d(RPE::kps3d2_matched, odom2_, "kps3d2");
+                visualizer->pubKps3d(RPE::kps3d2_matched, R2, t2, "kps3d2_estimate");
             }
             break;
         }

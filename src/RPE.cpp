@@ -125,8 +125,10 @@ namespace RPE
 
         settings["enable_nlopt"] >> enable_nlopt;
 
-        R_solver = make_unique<RSolver>();
+        settings["outdoor_mode"] >> enable_outdoor_mode;
+
         A_solver = make_unique<ASolver>(settings_path);
+        T_solver = make_unique<TSolver>(settings_path);
     }
 
     bool RPE::estimate(const cv::Mat &img1_l_, const cv::Mat &img1_r_,
@@ -136,10 +138,10 @@ namespace RPE
         LOG(INFO) << "============= RPE =============";
         auto t0 = chrono::high_resolution_clock::now(), t1 = chrono::high_resolution_clock::now(), t2 = chrono::high_resolution_clock::now(), t3 = chrono::high_resolution_clock::now(), t4 = chrono::high_resolution_clock::now(), t5 = chrono::high_resolution_clock::now();
 
-        img1_l = img1_l_;
-        img1_r = img1_r_;
-        img2_l = img2_l_;
-        img2_r = img2_r_;
+        img1_l = img1_l_.clone();
+        img1_r = img1_r_.clone();
+        img2_l = img2_l_.clone();
+        img2_r = img2_r_.clone();
 
         cv::Ptr<cv::CLAHE> clahe = cv::createCLAHE(3.0, cv::Size(8, 8));
         clahe->apply(img1_l, img1_l);
@@ -148,11 +150,6 @@ namespace RPE
         clahe->apply(img2_r, img2_r);
 
         t1 = chrono::high_resolution_clock::now();
-
-        kps1_l.clear();
-        kps1_r.clear();
-        kps2_l.clear();
-        kps2_r.clear();
 
         kps1_l_ori.clear();
         kps1_r_ori.clear();
@@ -170,7 +167,15 @@ namespace RPE
         kps1_l_refined.clear();
         kps2_l_refined.clear();
 
-        vector<int> match12, match21;
+        kps1_l_inliers_mono.clear();
+        kps2_l_inliers_mono.clear();
+
+        kps1_l_inliers_stereo.clear();
+        kps2_l_inliers_stereo.clear();
+
+        vector<cv::KeyPoint> kps1_l, kps1_r, kps2_l, kps2_r;
+        vector<Vector3d> kps3d1, kps3d2;
+        vector<int> match12;
         if (enable_hloc_matcher)
         {
             /*******************************************************/
@@ -235,29 +240,20 @@ namespace RPE
             kps2_l_ori = kps2_l;
             kps2_r_ori = kps2_r;
 
-            if (kps1_l.size() < 100 || kps1_r.size() < 100 || kps2_l.size() < 100 || kps2_r.size() < 100)
-            {
-                LOG(WARNING) << "Only " << kps1_l.size() << "/"
-                             << kps1_r.size() << "/"
-                             << kps2_l.size() << "/"
-                             << kps2_r.size() << " features detected #^#";
-                return false;
-            }
-
             CHECK_EQ(match_stereo1.size(), kps1_l.size());
             CHECK_EQ(match_stereo2.size(), kps2_l.size());
             CHECK_EQ(match12.size(), kps1_l.size());
 
-            // Compute match2->1 from match1->2
-            match21 = vector<int>(kps2_l.size(), -1);
+            // Compute match2->1 from match1->2 (only used for consistency check)
+            vector<int> match21 = vector<int>(kps2_l.size(), -1);
             for (size_t i = 0; i < match12.size(); i++)
                 if (match12[i] >= 0)
                     match21[match12[i]] = i;
 
             // Compute depth1 given stereo matches from HLOC
             extractKpsDepth(match_stereo1, kps1_l, kps1_r, kps3d1);
-            kps3d1_stereo = kps3d1;
 
+            // Prune match1->2 based on whether kp1 has depth
             size_t idx = 0;
             for (size_t i = 0; i < match_stereo1.size(); i++)
             {
@@ -280,8 +276,8 @@ namespace RPE
 
             // Compute depth2 given stereo matches from HLOC
             extractKpsDepth(match_stereo2, kps2_l, kps2_r, kps3d2);
-            kps3d2_stereo = kps3d2;
 
+            // Prune match1->2 based on whether kp2 has depth
             idx = 0;
             for (size_t i = 0; i < match_stereo2.size(); i++)
             {
@@ -302,6 +298,7 @@ namespace RPE
             }
             match21.resize(idx);
 
+            // Check for consistancy between match2->1 and match1->2
             for (size_t i = 0; i < match12.size(); i++)
                 if (match12[i] >= 0)
                     CHECK_EQ(match21[match12[i]], i);
@@ -309,17 +306,13 @@ namespace RPE
                 if (match21[i] >= 0)
                     CHECK_EQ(match12[match21[i]], i);
 
-            // Backup features after stereo matching
+            // Backup features and 3d points after stereo matching
             kps1_l_stereo = kps1_l;
             kps1_r_stereo = kps1_r;
             kps2_l_stereo = kps2_l;
             kps2_r_stereo = kps2_r;
-
-            if (kps1_l.size() < 50 || kps1_r.size() < 50 || kps2_l.size() < 50 || kps2_r.size() < 50)
-            {
-                LOG(WARNING) << "Only " << kps1_l.size() << "/" << kps2_l.size() << " stereo matches #^#";
-                return false;
-            }
+            kps3d1_stereo = kps3d1;
+            kps3d2_stereo = kps3d2;
 
             // Filter out far points
             CHECK_EQ(match12.size(), kps3d1.size());
@@ -331,15 +324,11 @@ namespace RPE
             rearrangeMatchedVec(match12, kps1_l, kps2_l);
             rearrangeMatchedVec(match12, kps3d1, kps3d2);
 
-            // Backup features after descriptor matching
+            // Backup features and 3d points after descriptor matching
             kps1_l_matched = kps1_l;
             kps2_l_matched = kps2_l;
-
-            if (kps1_l.size() < 15 || kps2_l.size() < 15)
-            {
-                LOG(WARNING) << "Only " << kps1_l.size() << " descriptor matches #^#";
-                return false;
-            }
+            kps3d1_matched = kps3d1;
+            kps3d2_matched = kps3d2;
 
             t5 = chrono::high_resolution_clock::now();
         }
@@ -488,10 +477,7 @@ namespace RPE
             }
 
             // Convert descriptor matrix to descriptor vector
-            desc1_l.clear();
-            desc1_r.clear();
-            desc2_l.clear();
-            desc2_r.clear();
+            vector<cv::Mat> desc1_l, desc1_r, desc2_l, desc2_r;
             for (size_t i = 0; i < desc1_l_.rows; i++)
                 desc1_l.emplace_back(desc1_l_.row(i));
             for (size_t i = 0; i < desc1_r_.rows; i++)
@@ -561,15 +547,26 @@ namespace RPE
         /************************************/
 
         bool recover_pose_success = false;
-        if (geometricVerificationNister(kps1_l, kps2_l, R12_mono))
+        vector<int> inliers_mono, inliers_stereo;
+        if (geometricVerificationNister(kps1_l, kps2_l, R12_mono, inliers_mono))
         {
-            if (recoverPose(kps3d1, kps3d2, R12_mono, R12_stereo, t12_stereo))
+            // Backup inlier features after mono RANSAC
+            for (size_t i = 0; i < inliers_mono.size(); i++)
             {
+                kps1_l_inliers_mono.emplace_back(kps1_l[inliers_mono[i]]);
+                kps2_l_inliers_mono.emplace_back(kps2_l[inliers_mono[i]]);
+            }
+
+            if (recoverPose(kps3d1, kps3d2, R12_mono, inliers_mono, R12_stereo, t12_stereo, inliers_stereo))
+            {
+                // Backup inlier features after stereo RANSAC
+                for (size_t i = 0; i < inliers_stereo.size(); i++)
+                {
+                    kps1_l_inliers_stereo.emplace_back(kps1_l[inliers_stereo[i]]);
+                    kps2_l_inliers_stereo.emplace_back(kps2_l[inliers_stereo[i]]);
+                }
+
                 recover_pose_success = true;
-
-                R12 = R12_stereo;
-                t12 = t12_stereo;
-
                 LOG(INFO) << "RANSAC pose recovery succeeded :)";
             }
         }
@@ -580,29 +577,40 @@ namespace RPE
         /****** Improve Matching with Pose Information ******/
         /****************************************************/
 
-        CHECK_EQ(match12.size(), kps3d1_stereo.size());
-        CHECK_EQ(match21.size(), kps3d2_stereo.size());
-        alternateOpt(kps3d1_stereo, kps3d2_stereo, match12, R12, t12);
+        // Set initial value
+        R12_refined = R12_stereo;
+        t12_refined = t12_stereo;
 
-        vector<cv::KeyPoint> kps1_l_refined_, kps2_l_refined_;
-        kps1_l_refined_ = kps1_l_stereo;
-        kps2_l_refined_ = kps2_l_stereo;
-        rearrangeMatchedVec(match12, kps1_l_refined_, kps2_l_refined_);
+        if (enable_outdoor_mode && kps3d1.size() < 250) // Notable hyperparameter...
+        {
+            CHECK_EQ(match12.size(), kps3d1_stereo.size());
+            alternateOpt(kps3d1_stereo, kps3d2_stereo, match12, R12_refined, t12_refined);
 
-        // Backup features after alternate optimization
-        kps1_l_refined = kps1_l_refined_;
-        kps2_l_refined = kps2_l_refined_;
+            // Backup features after alternate optimization
+            vector<cv::KeyPoint> kps1_l_refined_, kps2_l_refined_;
+            kps1_l_refined_ = kps1_l_stereo;
+            kps2_l_refined_ = kps2_l_stereo;
+            rearrangeMatchedVec(match12, kps1_l_refined_, kps2_l_refined_);
+            kps1_l_refined = kps1_l_refined_;
+            kps2_l_refined = kps2_l_refined_;
+        }
+        else
+        {
+            vector<int> match12_(kps3d1.size());
+            for (size_t i = 0; i < match12_.size(); i++)
+                match12_[i] = i;
+            alternateOpt(kps3d1, kps3d2, match12_, R12_refined, t12_refined);
 
-        // vector<int> match12_(kps3d1.size());
-        // for (size_t i = 0; i < match12_.size(); i++)
-        //     match12_[i] = i;
-        // alternateOpt(kps3d1, kps3d2, match12_, R12, t12);
+            // Backup features after alternate optimization
+            rearrangeMatchedVec(match12_, kps1_l, kps2_l);
+            kps1_l_refined = kps1_l;
+            kps2_l_refined = kps2_l;
+        }
 
-        // rearrangeMatchedVec(match12_, kps1_l, kps2_l);
+        auto t7 = chrono::high_resolution_clock::now();
 
-        // // Backup features after alternate optimization
-        // kps1_l_refined = kps1_l;
-        // kps2_l_refined = kps2_l;
+        R12 = R12_refined;
+        t12 = t12_refined;
 
         /********************************/
         /****** Print Running Time ******/
@@ -616,6 +624,8 @@ namespace RPE
                       << chrono::duration_cast<chrono::duration<double>>(t5 - t1).count() * 1000 << " ms";
             LOG(INFO) << "[Geometric Verification]: "
                       << chrono::duration_cast<chrono::duration<double>>(t6 - t5).count() * 1000 << " ms";
+            LOG(INFO) << "[Alternate Optimization]: "
+                      << chrono::duration_cast<chrono::duration<double>>(t7 - t6).count() * 1000 << " ms";
         }
         else
         {
@@ -747,7 +757,7 @@ namespace RPE
         vec2 = vec2_temp;
     }
 
-    bool RPE::geometricVerificationNister(const vector<cv::KeyPoint> &kps1, const vector<cv::KeyPoint> &kps2, Matrix3d &R12_mono)
+    bool RPE::geometricVerificationNister(const vector<cv::KeyPoint> &kps1, const vector<cv::KeyPoint> &kps2, Matrix3d &R12_mono, vector<int> &inliers_mono)
     {
         CHECK_EQ(kps1.size(), kps2.size());
 
@@ -774,6 +784,8 @@ namespace RPE
                 opengv::transformation_t T12 = mono_ransacer->model_coefficients_;
                 R12_mono = T12.block<3, 3>(0, 0);
 
+                inliers_mono = mono_ransacer->inliers_;
+
                 return true;
             }
             else
@@ -789,8 +801,8 @@ namespace RPE
         }
     }
 
-    bool RPE::recoverPose(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2, const Matrix3d &R12_mono,
-                          Matrix3d &R12_stereo, Vector3d &t12_stereo)
+    bool RPE::recoverPose(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2, const Matrix3d &R12_mono, const vector<int> &inliers_mono,
+                          Matrix3d &R12_stereo, Vector3d &t12_stereo, vector<int> &inliers_stereo)
     {
         CHECK_EQ(kps3d1.size(), kps3d2.size());
 
@@ -822,6 +834,8 @@ namespace RPE
                 opengv::transformation_t T12 = stereo_ransacer->model_coefficients_;
                 R12_ = T12.block<3, 3>(0, 0);
                 t12_ = T12.col(3);
+
+                inliers_stereo = stereo_ransacer->inliers_;
             }
             else
             {
@@ -837,14 +851,14 @@ namespace RPE
 
         if (enable_nlopt)
         {
-            // Compute transform using non-linear optimization with RANSAC inliers
+            // Compute transform using non-linear optimization with mono RANSAC inliers
             opengv::points_t kps3d1_inlier, kps3d2_inlier;
             kps3d1_inlier.resize(n_inliers);
             kps3d2_inlier.resize(n_inliers);
             for (size_t i = 0; i < n_inliers; i++)
             {
-                kps3d1_inlier[i] = kps3d1[stereo_ransacer->inliers_[i]];
-                kps3d2_inlier[i] = kps3d2[stereo_ransacer->inliers_[i]];
+                kps3d1_inlier[i] = kps3d1[inliers_mono[i]];
+                kps3d2_inlier[i] = kps3d2[inliers_mono[i]];
             }
             opengv::point_cloud::PointCloudAdapter adapter_inlier(kps3d1_inlier, kps3d2_inlier);
             adapter_inlier.setR12(R12_mono);
@@ -878,10 +892,9 @@ namespace RPE
                     A_tilde(j, i) = 1;
                 }
 
-        for (size_t iteration = 0; iteration < 1; iteration++)
-        {
-            A_solver->solve(kps3d1, kps3d2, R12, t12, A_tilde, A);
-        }
+        // Alternately optimize once
+        A_solver->solve(kps3d1, kps3d2, R12, t12, A_tilde, A);
+        T_solver->solve(kps3d1, kps3d2, A, R12, t12);
 
         // Convert the match matrix back to match vector
         match12 = vector<int>(N1, -1);

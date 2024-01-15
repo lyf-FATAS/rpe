@@ -160,9 +160,9 @@ namespace RPE
             const cv::Point &kp_2_ = kps2_l_refined[i].pt;
             const cv::Point kp_2(kp_2_.x, kp_2_.y + img1_l_show.rows);
 
-            cv::line(img12_refined_show, kp_1, kp_2, cv::Scalar(155, 0, 0), 1);
-            cv::circle(img12_refined_show, kp_1, 2, cv::Scalar(255, 0, 0), -1);
-            cv::circle(img12_refined_show, kp_2, 2, cv::Scalar(255, 0, 0), -1);
+            cv::line(img12_refined_show, kp_1, kp_2, cv::Scalar(0, 155, 0), 1);
+            cv::circle(img12_refined_show, kp_1, 2, cv::Scalar(0, 255, 0), -1);
+            cv::circle(img12_refined_show, kp_2, 2, cv::Scalar(0, 255, 0), -1);
         }
 
         cv::resize(img12_refined_show, img12_refined_show, cv::Size(), 0.66, 0.66);
