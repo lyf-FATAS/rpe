@@ -19,6 +19,7 @@
 #include <glog/logging.h>
 #include "Matcher.hpp"
 #include "Solver.hpp"
+#include "GNCPointCloudRegister.hpp"
 #include "temp_variables.hpp"
 
 using namespace std;
@@ -50,10 +51,10 @@ namespace RPE
         template <typename T>
         inline void rearrangeMatchedVec(const vector<int> &match12, vector<T> &vec1, vector<T> &vec2);
 
-        bool geometricVerificationNister(const vector<cv::KeyPoint> &kps1, const vector<cv::KeyPoint> &kps2, Matrix3d &R12_mono, vector<int> &inliers_mono); // Borrowed from Kimera-VIO
+        bool geometricVerificationNister(const vector<cv::KeyPoint> &kps1, const vector<cv::KeyPoint> &kps2, Matrix3d &R12_gv_mono, vector<int> &inliers_mono); // Borrowed from Kimera-VIO
 
-        bool recoverPose(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2, const Matrix3d &R12_mono, const vector<int> &inliers_mono,
-                         Matrix3d &R12_stereo, Vector3d &t12_stereo, vector<int> &inliers_stereo); // Borrowed from Kimera-VIO
+        bool geometricVerificationArun(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2, const Matrix3d &R12_gv_mono, const vector<int> &inliers_mono,
+                         Matrix3d &R12_gv, Vector3d &t12_gv, vector<int> &inliers_stereo); // Borrowed from Kimera-VIO
 
         void alternateOpt(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2,
                           vector<int> &match12, Matrix3d &R12, Vector3d &t12);
@@ -92,6 +93,8 @@ namespace RPE
 
         double far_pt_thr;
 
+        bool enable_gnc;
+
         int ransac_verbosity_level;
         int ransac_min_inliers;
 
@@ -103,8 +106,8 @@ namespace RPE
 
         bool enable_nlopt;
 
+        bool enable_alternate_opt;
         bool enable_outdoor_mode;
-
         unique_ptr<ASolver> A_solver;
         unique_ptr<TSolver> T_solver;
     };

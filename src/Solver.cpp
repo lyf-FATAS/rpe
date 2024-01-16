@@ -1,5 +1,4 @@
 #include "Solver.hpp"
-#include <iostream>
 
 using namespace std;
 
