@@ -14,9 +14,9 @@ namespace RPE
     vector<Vector3d> kps3d1_stereo, kps3d2_stereo;
     vector<Vector3d> kps3d1_matched, kps3d2_matched;
 
-    Matrix3d R12_mono;
-    Matrix3d R12_stereo;
-    Vector3d t12_stereo;
+    Matrix3d R12_gv_mono;
+    Matrix3d R12_gv;
+    Vector3d t12_gv;
     Matrix3d R12_refined;
     Vector3d t12_refined;
 }

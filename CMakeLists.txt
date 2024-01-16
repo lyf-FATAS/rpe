@@ -28,10 +28,12 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(OpenCV 4.4 REQUIRED PATHS /home/laji/Apps/opencv-4.8.0/build)
 find_package(PCL REQUIRED)
 find_package(opengv REQUIRED PATHS /home/laji/Apps/opengv/build)
-# Find glog: https://github.com/google/glog/issues/519
+# See https://github.com/google/glog/issues/519
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(glog REQUIRED libglog)
+find_package(GUROBI REQUIRED)
 find_package(Ceres REQUIRED PATHS /home/laji/Apps/ceres-solver-2.1.0/build)
+find_package(GTSAM 4.2 REQUIRED PATHS /home/laji/Apps/gtsam/build)
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -136,10 +138,11 @@ include_directories(
   include
   ${catkin_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
-  /home/laji/Apps/gurobi1002/linux64/include
+  ${GUROBI_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}
   ${glog_INCLUDE_DIRS}
   ${CERES_INCLUDE_DIRS}
+  ${GTSAM_INCLUDE_DIR}
 )
 
 ## Declare a C++ library
@@ -160,6 +163,7 @@ add_executable(online_rpe_node
   src/RPE.cpp
   src/Matcher.cpp
   src/Solver.cpp
+  src/GNCPointCloudRegister.cpp
   src/Visualizer.cpp
   src/temp_variables.cpp
 )
@@ -178,11 +182,12 @@ add_executable(online_rpe_node
 target_link_libraries(online_rpe_node
   ${catkin_LIBRARIES}
   ${OpenCV_LIBRARIES}
-  /home/laji/Apps/gurobi1002/linux64/src/build/libgurobi_c++.a
-  /home/laji/Apps/gurobi1002/linux64/lib/libgurobi100.so
+  ${GUROBI_CXX_LIBRARY}
+  ${GUROBI_LIBRARY}
   opengv
   ${glog_LIBRARIES}
   ${CERES_LIBRARIES}
+  gtsam
 )
 
 #############

@@ -185,7 +185,9 @@ int main(int argc, char **argv)
 
     visualizer = make_unique<RPE::Visualizer>(nh);
     RPE::Visualizer::DrawType draw_type;
+    bool enable_alternate_opt;
     settings["Visualizer.draw_type"] >> draw_type;
+    settings["enable_alternate_opt"] >> enable_alternate_opt;
 
     string img_l_topic, img_r_topic, odom_topic;
     settings["img_l_topic"] >> img_l_topic;
@@ -235,6 +237,14 @@ int main(int argc, char **argv)
         {
             if (trigger)
             {
+                nav_msgs::Odometry odom2_;
+                if (recv_odom)
+                {
+                    lock_guard<mutex> lock(odom_mutex);
+                    visualizer->pubPose(odom2, "odom2");
+                    odom2_ = odom2;
+                }
+
                 cv::Mat img1_l, img1_r, img2_l, img2_r;
                 {
                     lock_guard<mutex> lock(img_mutex);
@@ -248,44 +258,40 @@ int main(int argc, char **argv)
                 bool recover_pose_success = estimator.estimate(img1_l, img1_r, img2_l, img2_r, R12, t12);
 
                 visualizer->draw(draw_type);
-                // visualizer->pubKps3d(RPE::kps3d1_stereo, Matrix3d::Identity(), Vector3d::Zero(), "kps3d1_stereo");
-                // visualizer->pubKps3d(RPE::kps3d2_stereo, Matrix3d::Identity(), Vector3d::Zero(), "kps3d2_stereo");
+                visualizer->pubKps3d(RPE::kps3d1_stereo, Matrix3d::Identity(), Vector3d::Zero(), "kps3d1_stereo");
+                visualizer->pubKps3d(RPE::kps3d2_stereo, Matrix3d::Identity(), Vector3d::Zero(), "kps3d2_stereo");
 
-                if (recv_odom)
+                if (recv_odom && recover_pose_success)
                 {
-                    if (recover_pose_success)
-                    {
-                        nav_msgs::Odometry odom1_, odom2_;
-                        {
-                            lock_guard<mutex> lock(odom_mutex);
-                            odom1_ = odom1;
-                            odom2_ = odom2;
-                        }
-
-                        visualizer->pubPose(odom2_, "odom2");
-
-                        const Matrix3d R1(Quaterniond(odom1_.pose.pose.orientation.w,
-                                                      odom1_.pose.pose.orientation.x,
-                                                      odom1_.pose.pose.orientation.y,
-                                                      odom1_.pose.pose.orientation.z));
-                        const Vector3d t1(odom1_.pose.pose.position.x,
-                                          odom1_.pose.pose.position.y,
-                                          odom1_.pose.pose.position.z);
-
-                        // x = R1 * (R12 * x2 + t12) + t1 = (R1 * R12) * x2 + (R1 * t12 + t1)
-                        const Matrix3d R2 = R1 * R12;
-                        const Vector3d t2 = R1 * t12 + t1;
-
-                        visualizer->pubPose(R2, t2, "odom2_estimate");
-
-                        visualizer->pubKps3d(RPE::kps3d1_matched, odom1_, "kps3d1");
-                        visualizer->pubKps3d(RPE::kps3d2_matched, odom2_, "kps3d2");
-                        visualizer->pubKps3d(RPE::kps3d2_matched, R2, t2, "kps3d2_estimate");
-                    }
-                    else
+                    nav_msgs::Odometry odom1_;
                     {
                         lock_guard<mutex> lock(odom_mutex);
-                        visualizer->pubPose(odom2, "odom2");
+                        odom1_ = odom1;
+                    }
+
+                    const Matrix3d R1(Quaterniond(odom1_.pose.pose.orientation.w,
+                                                  odom1_.pose.pose.orientation.x,
+                                                  odom1_.pose.pose.orientation.y,
+                                                  odom1_.pose.pose.orientation.z));
+                    const Vector3d t1(odom1_.pose.pose.position.x,
+                                      odom1_.pose.pose.position.y,
+                                      odom1_.pose.pose.position.z);
+
+                    visualizer->pubKps3d(RPE::kps3d1_matched, odom1_, "kps3d1");
+                    visualizer->pubKps3d(RPE::kps3d2_matched, odom2_, "kps3d2");
+
+                    // x = R1 * (R12 * x2 + t12) + t1 = (R1 * R12) * x2 + (R1 * t12 + t1)
+                    const Matrix3d R2_ransan = R1 * RPE::R12_gv;
+                    const Vector3d t2_ransan = R1 * RPE::t12_gv + t1;
+                    visualizer->pubPose(R2_ransan, t2_ransan, "odom2_ransac_estimate");
+                    visualizer->pubKps3d(RPE::kps3d2_matched, R2_ransan, t2_ransan, "kps3d2_ransac_estimate");
+
+                    if (enable_alternate_opt)
+                    {
+                        const Matrix3d R2 = R1 * R12;
+                        const Vector3d t2 = R1 * t12 + t1;
+                        visualizer->pubPose(R2, t2, "odom2_estimate");
+                        visualizer->pubKps3d(RPE::kps3d2_matched, R2, t2, "kps3d2_estimate");
                     }
                 }
                 trigger = false;
@@ -318,8 +324,8 @@ int main(int argc, char **argv)
             bool recover_pose_success = estimator.estimate(img1_l, img1_r, img2_l, img2_r, R12, t12);
 
             visualizer->draw(draw_type);
-            // visualizer->pubKps3d(RPE::kps3d1_stereo, Matrix3d::Identity(), Vector3d::Zero(), "kps3d1_stereo");
-            // visualizer->pubKps3d(RPE::kps3d2_stereo, Matrix3d::Identity(), Vector3d::Zero(), "kps3d2_stereo");
+            visualizer->pubKps3d(RPE::kps3d1_stereo, Matrix3d::Identity(), Vector3d::Zero(), "kps3d1_stereo");
+            visualizer->pubKps3d(RPE::kps3d2_stereo, Matrix3d::Identity(), Vector3d::Zero(), "kps3d2_stereo");
 
             if (recv_odom && recover_pose_success)
             {
@@ -340,15 +346,22 @@ int main(int argc, char **argv)
                                   odom1_.pose.pose.position.y,
                                   odom1_.pose.pose.position.z);
 
-                // x = R1 * (R12 * x2 + t12) + t1 = (R1 * R12) * x2 + (R1 * t12 + t1)
-                const Matrix3d R2 = R1 * R12;
-                const Vector3d t2 = R1 * t12 + t1;
-
-                visualizer->pubPose(R2, t2, "odom2_estimate");
-
                 visualizer->pubKps3d(RPE::kps3d1_matched, odom1_, "kps3d1");
                 visualizer->pubKps3d(RPE::kps3d2_matched, odom2_, "kps3d2");
-                visualizer->pubKps3d(RPE::kps3d2_matched, R2, t2, "kps3d2_estimate");
+
+                // x = R1 * (R12 * x2 + t12) + t1 = (R1 * R12) * x2 + (R1 * t12 + t1)
+                const Matrix3d R2_ransan = R1 * RPE::R12_gv;
+                const Vector3d t2_ransan = R1 * RPE::t12_gv + t1;
+                visualizer->pubPose(R2_ransan, t2_ransan, "odom2_ransac_estimate");
+                visualizer->pubKps3d(RPE::kps3d2_matched, R2_ransan, t2_ransan, "kps3d2_ransac_estimate");
+
+                if (enable_alternate_opt)
+                {
+                    const Matrix3d R2 = R1 * R12;
+                    const Vector3d t2 = R1 * t12 + t1;
+                    visualizer->pubPose(R2, t2, "odom2_estimate");
+                    visualizer->pubKps3d(RPE::kps3d2_matched, R2, t2, "kps3d2_estimate");
+                }
             }
             break;
         }
