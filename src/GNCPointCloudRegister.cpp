@@ -3,8 +3,14 @@
 
 namespace RPE
 {
+    GNCPointCloudRegister::GNCPointCloudRegister(string settings_path)
+    {
+        cv::FileStorage settings(settings_path, cv::FileStorage::READ);
+        settings["gnc_verbosity_level"] >> gnc_verbosity_level;
+    }
+
     using symbol_shorthand::X;
-    void registerPointCloudGNC(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2, Matrix3d &R12_gv, Vector3d &t12_gv)
+    void GNCPointCloudRegister::registerPointCloudGNC(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2, Matrix3d &R12_gv, Vector3d &t12_gv)
     {
         NonlinearFactorGraph graph;
         noiseModel::Diagonal::shared_ptr noise = noiseModel::Unit::Create(3);
@@ -16,19 +22,22 @@ namespace RPE
         Values initial;
         initial.insert(X(0), Pose3(Matrix4d::Identity()));
 
-        // Set options for the non-minimal solver
-        LevenbergMarquardtParams lmParams;
-        lmParams.setMaxIterations(1000);
-        lmParams.setRelativeErrorTol(1e-5);
-
-        GncParams<LevenbergMarquardtParams> gncParams(lmParams);
+        GncParams<GaussNewtonParams> gncParams;
         gncParams.setLossType(GncLossType::TLS);
-        gncParams.setVerbosityGNC(GncParams<LevenbergMarquardtParams>::Verbosity::SUMMARY);
+        switch (gnc_verbosity_level)
+        {
+        case 0:
+            gncParams.setVerbosityGNC(GncParams<GaussNewtonParams>::Verbosity::SILENT);
+            break;
+        case 1:
+            gncParams.setVerbosityGNC(GncParams<GaussNewtonParams>::Verbosity::SUMMARY);
+            break;
+        default:
+            LOG(FATAL) << "Invalid GNC verbosity level #^#";
+        }
 
-        GncOptimizer<GncParams<LevenbergMarquardtParams>> optimizer(graph, initial, gncParams);
-        LOG(INFO) << "Entering GNC optimization...";
+        auto optimizer = GncOptimizer<GncParams<GaussNewtonParams>>(graph, initial, gncParams);
         Values estimate = optimizer.optimize();
-        LOG(INFO) << "GNC optimization complete :)";
 
         Matrix4d T = estimate.at<Pose3>(X(0)).matrix();
         R12_gv = T.topLeftCorner<3, 3>();

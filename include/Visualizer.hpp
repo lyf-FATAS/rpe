@@ -2,6 +2,7 @@
 
 #include <memory>
 #include <thread>
+#include <eigen3/Eigen/Dense>
 #include <ros/ros.h>
 #include <nav_msgs/Odometry.h>
 #include <sensor_msgs/PointCloud2.h>
@@ -10,7 +11,7 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
-#include <eigen3/Eigen/Dense>
+
 #include "temp_variables.hpp"
 
 using namespace Eigen;

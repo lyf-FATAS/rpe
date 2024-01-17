@@ -3,6 +3,7 @@
 #include <string>
 #include <opencv2/core/core.hpp>
 #include <glog/logging.h>
+
 #include "gurobi_c++.h"
 #include "temp_variables.hpp"
 

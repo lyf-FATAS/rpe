@@ -115,6 +115,7 @@ namespace RPE
         settings["enable_gnc"] >> enable_gnc;
         if (enable_gnc)
         {
+            gnc_pc_register = make_unique<GNCPointCloudRegister>(settings_path);
         }
         else
         {
@@ -558,7 +559,7 @@ namespace RPE
 
         if (enable_gnc)
         {
-            registerPointCloudGNC(kps3d1, kps3d2, R12_gv, t12_gv);
+            gnc_pc_register->registerPointCloudGNC(kps3d1, kps3d2, R12_gv, t12_gv);
         }
         else
         {

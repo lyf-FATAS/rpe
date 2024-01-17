@@ -1,11 +1,10 @@
 #pragma once
 
-#include <boost/optional.hpp>
 #include <boost/pointer_cast.hpp>
 #include <opencv2/core/core.hpp>
 #include <gtsam/geometry/Pose3.h>
-#include <gtsam/nonlinear/NonlinearFactor.h>
 #include <gtsam/inference/Symbol.h>
+#include <gtsam/nonlinear/NonlinearFactor.h>
 #include <gtsam/nonlinear/Values.h>
 #include <glog/logging.h>
 
@@ -46,12 +45,12 @@ namespace RPE
         virtual Vector evaluateError(const Pose3 &X, OptionalMatrixType H = OptionalNone) const override
         {
             const Rot3 &R = X.rotation();
-            Vector3 mx = R * msrc_ + X.translation();
-            Vector3 error = mx - mtgt_;
+            Vector3 mx = R * mtgt_ + X.translation();
+            Vector3 error = mx - msrc_;
             if (H)
             {
                 *H = gtsam::Matrix(3, 6);
-                (*H).block(0, 0, 3, 3) = -X.rotation().matrix() * skew(msrc_);
+                (*H).block(0, 0, 3, 3) = -X.rotation().matrix() * skew(mtgt_);
                 (*H).block(0, 3, 3, 3) = X.rotation().matrix();
             }
             return error;
@@ -60,6 +59,14 @@ namespace RPE
         Vector3d msrc_, mtgt_; ///< src and tgt measurements
     };
 
-    void registerPointCloudGNC(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2, Matrix3d &R12_gv, Vector3d &t12_gv);
+    class GNCPointCloudRegister
+    {
+    public:
+        GNCPointCloudRegister(string settings_path);
+
+        void registerPointCloudGNC(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2, Matrix3d &R12_gv, Vector3d &t12_gv);
+
+        int gnc_verbosity_level;
+    };
 
 }

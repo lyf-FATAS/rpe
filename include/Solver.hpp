@@ -1,9 +1,10 @@
 #pragma once
 
 #include <string>
-#include <opencv2/core/core.hpp>
 #include <eigen3/Eigen/Dense>
+#include <opencv2/core/core.hpp>
 #include <glog/logging.h>
+
 #include "gurobi_c++.h"
 #include "ceres/ceres.h"
 #include "ceres/autodiff_cost_function.h"
