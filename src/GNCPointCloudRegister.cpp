@@ -10,7 +10,7 @@ namespace RPE
     }
 
     using symbol_shorthand::X;
-    void GNCPointCloudRegister::registerPointCloudGNC(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2, Matrix3d &R12_gv, Vector3d &t12_gv)
+    void GNCPointCloudRegister::registerPointCloudGNC(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2, Matrix3d &R12_ransac, Vector3d &t12_ransac)
     {
         NonlinearFactorGraph graph;
         noiseModel::Diagonal::shared_ptr noise = noiseModel::Unit::Create(3);
@@ -40,7 +40,7 @@ namespace RPE
         Values estimate = optimizer.optimize();
 
         Matrix4d T = estimate.at<Pose3>(X(0)).matrix();
-        R12_gv = T.topLeftCorner<3, 3>();
-        t12_gv = T.topRightCorner<3, 1>();
+        R12_ransac = T.topLeftCorner<3, 3>();
+        t12_ransac = T.topRightCorner<3, 1>();
     }
 }

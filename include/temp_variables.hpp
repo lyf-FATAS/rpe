@@ -21,10 +21,11 @@ namespace RPE
     extern vector<Vector3d> kps3d1_stereo, kps3d2_stereo;
     extern vector<Vector3d> kps3d1_matched, kps3d2_matched;
 
-    // "gv" stands for "geometric verification"
-    extern Matrix3d R12_gv_mono;
-    extern Matrix3d R12_gv;
-    extern Vector3d t12_gv;
+    extern Matrix3d R12_ransac_mono;
+    extern Matrix3d R12_ransac;
+    extern Vector3d t12_ransac;
+    extern Matrix3d R12_gnc;
+    extern Vector3d t12_gnc;
     extern Matrix3d R12_refined;
     extern Vector3d t12_refined;
 }
