@@ -28,12 +28,12 @@ find_package(catkin REQUIRED COMPONENTS
 find_package(OpenCV 4.4 REQUIRED PATHS /home/laji/Apps/opencv-4.8.0/build)
 find_package(PCL REQUIRED)
 find_package(opengv REQUIRED PATHS /home/laji/Apps/opengv/build)
+find_package(GTSAM 4.2 REQUIRED PATHS /home/laji/Apps/gtsam/build)
+find_package(GUROBI REQUIRED)
+find_package(Ceres REQUIRED PATHS /home/laji/Apps/ceres-solver-2.1.0/build)
 # See https://github.com/google/glog/issues/519
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(glog REQUIRED libglog)
-find_package(GUROBI REQUIRED)
-find_package(Ceres REQUIRED PATHS /home/laji/Apps/ceres-solver-2.1.0/build)
-find_package(GTSAM 4.2 REQUIRED PATHS /home/laji/Apps/gtsam/build)
 
 ## Uncomment this if the package has a setup.py. This macro ensures
 ## modules and global scripts declared therein get installed
@@ -138,17 +138,22 @@ include_directories(
   include
   ${catkin_INCLUDE_DIRS}
   ${OpenCV_INCLUDE_DIRS}
-  ${GUROBI_INCLUDE_DIRS}
   ${PCL_INCLUDE_DIRS}
-  ${glog_INCLUDE_DIRS}
-  ${CERES_INCLUDE_DIRS}
   ${GTSAM_INCLUDE_DIR}
+  ${GUROBI_INCLUDE_DIRS}
+  ${CERES_INCLUDE_DIRS}
+  ${glog_INCLUDE_DIRS}
 )
 
 ## Declare a C++ library
-# add_library(${PROJECT_NAME}
-#   src/${PROJECT_NAME}/rpe.cpp
-# )
+add_library(rpe
+  src/RPE.cpp
+  src/Matcher.cpp
+  src/GNCPointCloudRegister.cpp
+  src/Solver.cpp
+  src/Visualizer.cpp
+  src/temp_variables.cpp
+)
 
 ## Add cmake target dependencies of the library
 ## as an example, code may need to be generated before libraries
@@ -158,15 +163,7 @@ include_directories(
 ## Declare a C++ executable
 ## With catkin_make all packages are built within a single CMake context
 ## The recommended prefix ensures that target names across packages don't collide
-add_executable(online_rpe_node
-  src/online_rpe_node.cpp
-  src/RPE.cpp
-  src/Matcher.cpp
-  src/Solver.cpp
-  src/GNCPointCloudRegister.cpp
-  src/Visualizer.cpp
-  src/temp_variables.cpp
-)
+add_executable(online_rpe_node src/online_rpe_node.cpp)
 
 ## Rename C++ executable without prefix
 ## The above recommended prefix causes long target names, the following renames the
@@ -179,16 +176,18 @@ add_executable(online_rpe_node
 # add_dependencies(${PROJECT_NAME}_node ${${PROJECT_NAME}_EXPORTED_TARGETS} ${catkin_EXPORTED_TARGETS})
 
 ## Specify libraries to link a library or executable target against
-target_link_libraries(online_rpe_node
+target_link_libraries(rpe
   ${catkin_LIBRARIES}
   ${OpenCV_LIBRARIES}
+  opengv
+  gtsam
   ${GUROBI_CXX_LIBRARY}
   ${GUROBI_LIBRARY}
-  opengv
-  ${glog_LIBRARIES}
   ${CERES_LIBRARIES}
-  gtsam
+  ${glog_LIBRARIES}
 )
+
+target_link_libraries(online_rpe_node rpe)
 
 #############
 ## Install ##
