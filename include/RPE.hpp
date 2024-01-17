@@ -2,14 +2,14 @@
 
 #include <string>
 #include <chrono>
+#include <eigen3/Eigen/Dense>
 #include <ros/ros.h>
 #include <rpe/FeatureDetection.h>
 #include <rpe/Matching.h>
 #include <cv_bridge/cv_bridge.h>
 #include <opencv2/core/core.hpp>
-#include <opencv2/features2d/features2d.hpp>
 #include <opencv2/imgproc/imgproc.hpp>
-#include <eigen3/Eigen/Dense>
+#include <opencv2/features2d/features2d.hpp>
 #include <opengv/relative_pose/CentralRelativeAdapter.hpp>
 #include <opengv/point_cloud/PointCloudAdapter.hpp>
 #include <opengv/point_cloud/methods.hpp>
@@ -17,6 +17,7 @@
 #include <opengv/sac_problems/relative_pose/CentralRelativePoseSacProblem.hpp>
 #include <opengv/sac_problems/point_cloud/PointCloudSacProblem.hpp>
 #include <glog/logging.h>
+
 #include "Matcher.hpp"
 #include "Solver.hpp"
 #include "GNCPointCloudRegister.hpp"
@@ -94,6 +95,7 @@ namespace RPE
         double far_pt_thr;
 
         bool enable_gnc;
+        unique_ptr<GNCPointCloudRegister> gnc_pc_register;
 
         int ransac_verbosity_level;
         int ransac_min_inliers;

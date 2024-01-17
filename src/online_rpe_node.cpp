@@ -14,6 +14,7 @@
 #include <opencv2/core/core.hpp>
 #include <opencv2/highgui/highgui.hpp>
 #include <glog/logging.h>
+
 #include "RPE.hpp"
 #include "Visualizer.hpp"
 #include "temp_variables.hpp"
@@ -237,11 +238,12 @@ int main(int argc, char **argv)
         {
             if (trigger)
             {
-                nav_msgs::Odometry odom2_;
+                nav_msgs::Odometry odom1_, odom2_;
                 if (recv_odom)
                 {
                     lock_guard<mutex> lock(odom_mutex);
                     visualizer->pubPose(odom2, "odom2");
+                    odom1_ = odom1;
                     odom2_ = odom2;
                 }
 
@@ -258,17 +260,11 @@ int main(int argc, char **argv)
                 bool recover_pose_success = estimator.estimate(img1_l, img1_r, img2_l, img2_r, R12, t12);
 
                 visualizer->draw(draw_type);
-                visualizer->pubKps3d(RPE::kps3d1_stereo, Matrix3d::Identity(), Vector3d::Zero(), "kps3d1_stereo");
-                visualizer->pubKps3d(RPE::kps3d2_stereo, Matrix3d::Identity(), Vector3d::Zero(), "kps3d2_stereo");
+                // visualizer->pubKps3d(RPE::kps3d1_stereo, Matrix3d::Identity(), Vector3d::Zero(), "kps3d1_stereo");
+                // visualizer->pubKps3d(RPE::kps3d2_stereo, Matrix3d::Identity(), Vector3d::Zero(), "kps3d2_stereo");
 
                 if (recv_odom && recover_pose_success)
                 {
-                    nav_msgs::Odometry odom1_;
-                    {
-                        lock_guard<mutex> lock(odom_mutex);
-                        odom1_ = odom1;
-                    }
-
                     const Matrix3d R1(Quaterniond(odom1_.pose.pose.orientation.w,
                                                   odom1_.pose.pose.orientation.x,
                                                   odom1_.pose.pose.orientation.y,
@@ -311,6 +307,15 @@ int main(int argc, char **argv)
         }
         case FsmState::CONTINUOUS_SOLVING:
         {
+            nav_msgs::Odometry odom1_, odom2_;
+            if (recv_odom)
+            {
+                lock_guard<mutex> lock(odom_mutex);
+                visualizer->pubPose(odom2, "odom2");
+                odom1_ = odom1;
+                odom2_ = odom2;
+            }
+
             cv::Mat img1_l, img1_r, img2_l, img2_r;
             {
                 lock_guard<mutex> lock(img_mutex);
@@ -324,20 +329,11 @@ int main(int argc, char **argv)
             bool recover_pose_success = estimator.estimate(img1_l, img1_r, img2_l, img2_r, R12, t12);
 
             visualizer->draw(draw_type);
-            visualizer->pubKps3d(RPE::kps3d1_stereo, Matrix3d::Identity(), Vector3d::Zero(), "kps3d1_stereo");
-            visualizer->pubKps3d(RPE::kps3d2_stereo, Matrix3d::Identity(), Vector3d::Zero(), "kps3d2_stereo");
+            // visualizer->pubKps3d(RPE::kps3d1_stereo, Matrix3d::Identity(), Vector3d::Zero(), "kps3d1_stereo");
+            // visualizer->pubKps3d(RPE::kps3d2_stereo, Matrix3d::Identity(), Vector3d::Zero(), "kps3d2_stereo");
 
             if (recv_odom && recover_pose_success)
             {
-                nav_msgs::Odometry odom1_, odom2_;
-                {
-                    lock_guard<mutex> lock(odom_mutex);
-                    odom1_ = odom1;
-                    odom2_ = odom2;
-                }
-
-                visualizer->pubPose(odom2_, "odom2");
-
                 const Matrix3d R1(Quaterniond(odom1_.pose.pose.orientation.w,
                                               odom1_.pose.pose.orientation.x,
                                               odom1_.pose.pose.orientation.y,
