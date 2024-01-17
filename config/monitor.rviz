@@ -160,7 +160,7 @@ Visualization Manager:
         Shaft Length: 1
         Shaft Radius: 0.05000000074505806
         Value: Axes
-      Topic: /online_rpe_node/odom2_ransac_estimate
+      Topic: /online_rpe_node/pose2_ransac
       Unreliable: false
       Value: true
     - Angle Tolerance: 0.0010000000474974513
@@ -195,7 +195,7 @@ Visualization Manager:
         Shaft Length: 1
         Shaft Radius: 0.05000000074505806
         Value: Axes
-      Topic: /online_rpe_node/odom2_gnc_estimate
+      Topic: /online_rpe_node/pose2_gnc
       Unreliable: false
       Value: true
     - Angle Tolerance: 0.0010000000474974513
@@ -230,7 +230,7 @@ Visualization Manager:
         Shaft Length: 1
         Shaft Radius: 0.05000000074505806
         Value: Axes
-      Topic: /online_rpe_node/odom2_estimate
+      Topic: /online_rpe_node/pose2_altopt
       Unreliable: false
       Value: true
     - Alpha: 1
@@ -256,7 +256,7 @@ Visualization Manager:
       Size (Pixels): 4
       Size (m): 0.009999999776482582
       Style: Points
-      Topic: /online_rpe_node/kps3d1
+      Topic: /online_rpe_node/kps3d1_gt
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -284,7 +284,7 @@ Visualization Manager:
       Size (Pixels): 4
       Size (m): 0.009999999776482582
       Style: Points
-      Topic: /online_rpe_node/kps3d2
+      Topic: /online_rpe_node/kps3d2_gt
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -312,7 +312,7 @@ Visualization Manager:
       Size (Pixels): 4
       Size (m): 0.009999999776482582
       Style: Points
-      Topic: /online_rpe_node/kps3d2_ransac_estimate
+      Topic: /online_rpe_node/kps3d2_ransac
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -340,7 +340,7 @@ Visualization Manager:
       Size (Pixels): 4
       Size (m): 4
       Style: Points
-      Topic: /online_rpe_node/kps3d2_gnc_estimate
+      Topic: /online_rpe_node/kps3d2_gnc
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -368,7 +368,7 @@ Visualization Manager:
       Size (Pixels): 4
       Size (m): 0.009999999776482582
       Style: Points
-      Topic: /online_rpe_node/kps3d2_estimate
+      Topic: /online_rpe_node/kps3d2_altopt
       Unreliable: false
       Use Fixed Frame: true
       Use rainbow: true
@@ -473,9 +473,9 @@ Visualization Manager:
       Invert Z Axis: false
       Name: Current View
       Near Clip Distance: 0.009999999776482582
-      Pitch: 0.24479743838310242
+      Pitch: 0.15479762852191925
       Target Frame: <Fixed Frame>
-      Yaw: 4.501692295074463
+      Yaw: 4.46169376373291
     Saved: ~
 Window Geometry:
   Displays:
