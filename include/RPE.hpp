@@ -57,7 +57,7 @@ namespace RPE
         bool geometricVerificationArun(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2, const Matrix3d &R12_ransac_mono, const vector<int> &inliers_mono,
                          Matrix3d &R12_ransac, Vector3d &t12_ransac, vector<int> &inliers_stereo); // Borrowed from Kimera-VIO
 
-        void alternateOpt(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2,
+        void alternateOpt(const vector<cv::KeyPoint> &kps1, const vector<cv::KeyPoint> &kps2, const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2,
                           vector<int> &match12, Matrix3d &R12, Vector3d &t12);
 
         ros::NodeHandle nh;

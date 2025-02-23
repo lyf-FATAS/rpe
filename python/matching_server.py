@@ -19,6 +19,7 @@ feature_extraction_confs = {
             "name": "superpoint",
             "nms_radius": 3,
             "max_keypoints": 4096,
+            # "keypoint_threshold": 0.001,
         },
         "preprocessing": {
             "grayscale": True,
@@ -65,6 +66,7 @@ feature_extraction_confs = {
         "model": {
             "name": "disk",
             "max_keypoints": 5000,
+            # 'detection_threshold': 40,
         },
         "preprocessing": {
             "grayscale": False,

@@ -198,7 +198,7 @@ namespace RPE
 
         obj = 0;
 
-        if (enable_outdoor_mode && n_matches < 250) // Notable hyperparameter...
+        if (enable_outdoor_mode && n_matches < 1000)
         {
             for (size_t i = 0; i < N2; i++)
             {
@@ -226,6 +226,7 @@ namespace RPE
     {
         cv::FileStorage settings(settings_path, cv::FileStorage::READ);
         settings["Ceres_log_to_console"] >> Ceres_log_to_console;
+        settings["GRB_log_to_console"] >> GRB_log_to_console;
     }
 
     void TSolver::solve(const vector<Vector3d> &P1, const vector<Vector3d> &P2, const MatrixXd &A, Matrix3d &R12, Vector3d &t12)
@@ -238,10 +239,12 @@ namespace RPE
 
         Quaterniond q12(R12);
 
-        ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
+        // ceres::LossFunction *loss_function = new ceres::HuberLoss(1.0);
+        ceres::LossFunction *loss_function = nullptr;
         ceres::Manifold *quaternion_manifold = new ceres::EigenQuaternionManifold;
 
         ceres::Problem problem;
+        size_t n_matches = 0;
         for (size_t i = 0; i < N2; i++)
         {
             for (size_t j = 0; j < N1; j++)
@@ -250,14 +253,17 @@ namespace RPE
                 {
                     ceres::CostFunction *cost_function = PointCloudRegistrationErrorTerm::Create(P1[j], P2[i]);
                     problem.AddResidualBlock(cost_function, loss_function, q12.coeffs().data(), t12.data());
+                    n_matches++;
                 }
             }
         }
+        LOG(INFO) << "Number of matches = " << n_matches << " in TSolver";
         problem.SetManifold(q12.coeffs().data(), quaternion_manifold);
 
         ceres::Solver::Options options;
         options.max_num_iterations = 500;
-        options.linear_solver_type = ceres::DENSE_SCHUR;
+        options.linear_solver_type = ceres::DENSE_QR;
+        options.use_nonmonotonic_steps = true;
 
         ceres::Solver::Summary summary;
         ceres::Solve(options, &problem, &summary);
@@ -266,6 +272,60 @@ namespace RPE
             cout << summary.FullReport() << endl;
 
         R12 = q12.toRotationMatrix();
+
+        refineTranslation(P1, P2, A, R12, t12);
+    }
+
+    void TSolver::refineTranslation(const vector<Vector3d> &P1, const vector<Vector3d> &P2, const MatrixXd &A, const Matrix3d &R12, Vector3d &t12)
+    {
+        const size_t N1 = A.cols();
+        const size_t N2 = A.rows();
+
+        try
+        {
+            GRBEnv env;
+            GRBModel model(env);
+            model.set(GRB_StringAttr_ModelName, "t_refinement");
+            model.set(GRB_IntParam_LogToConsole, GRB_log_to_console);
+
+            vector<GRBVar> t(3);
+            for (size_t i = 0; i < 3; i++)
+                t[i] = model.addVar(-10.0, 10.0, 0.0, GRB_CONTINUOUS, "t_" + to_string(i));
+
+            GRBQuadExpr obj = 0;
+            for (size_t i = 0; i < N2; i++)
+            {
+                for (size_t j = 0; j < N1; j++)
+                {
+                    if (A(i, j))
+                    {
+                        const Vector3d &p1 = P1[j];
+                        const Vector3d &p2 = P2[i];
+                        const Vector3d &t_tilde = R12 * p2 - p1;
+                        for (size_t k = 0; k < 3; k++)
+                            obj += t[k] * t[k] + 2 * t_tilde[k] * t[k];
+                    }
+                }
+            }
+            model.setObjective(obj, GRB_MINIMIZE);
+
+            // Set the initial value of A
+            for (size_t i = 0; i < 3; i++)
+                // t[i].set(GRB_DoubleAttr_Start, t12(i));
+                t[i].set(GRB_DoubleAttr_Start, 0.0);
+            model.optimize();
+
+            for (size_t i = 0; i < 3; i++)
+                t12(i) = t[i].get(GRB_DoubleAttr_X);
+        }
+        catch (const GRBException &e)
+        {
+            LOG(FATAL) << "GRB exception: error code = " << e.getErrorCode() << " " << e.getMessage();
+        }
+        catch (...)
+        {
+            LOG(FATAL) << "Exception during optimization #^#";
+        }
     }
 
     template <typename D>

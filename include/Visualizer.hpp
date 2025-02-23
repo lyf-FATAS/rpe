@@ -11,6 +11,7 @@
 #include <opencv2/highgui/highgui.hpp>
 #include <pcl/point_cloud.h>
 #include <pcl/point_types.h>
+#include <glog/logging.h>
 
 #include "temp_variables.hpp"
 

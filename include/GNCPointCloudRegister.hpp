@@ -64,7 +64,8 @@ namespace RPE
     public:
         GNCPointCloudRegister(string settings_path);
 
-        void registerPointCloudGNC(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2, Matrix3d &R12_ransac, Vector3d &t12_ransac);
+        void registerPointCloudGNC(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2,
+                                   Matrix3d &R12, Vector3d &t12, vector<int> &inliers);
 
         int gnc_verbosity_level;
     };
