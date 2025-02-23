@@ -52,12 +52,12 @@ namespace RPE
         template <typename T>
         inline void rearrangeMatchedVec(const vector<int> &match12, vector<T> &vec1, vector<T> &vec2);
 
-        bool geometricVerificationNister(const vector<cv::KeyPoint> &kps1, const vector<cv::KeyPoint> &kps2, Matrix3d &R12_gv_mono, vector<int> &inliers_mono); // Borrowed from Kimera-VIO
+        bool geometricVerificationNister(const vector<cv::KeyPoint> &kps1, const vector<cv::KeyPoint> &kps2, Matrix3d &R12_ransac_mono, vector<int> &inliers_mono); // Borrowed from Kimera-VIO
 
-        bool geometricVerificationArun(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2, const Matrix3d &R12_gv_mono, const vector<int> &inliers_mono,
-                         Matrix3d &R12_gv, Vector3d &t12_gv, vector<int> &inliers_stereo); // Borrowed from Kimera-VIO
+        bool geometricVerificationArun(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2, const Matrix3d &R12_ransac_mono, const vector<int> &inliers_mono,
+                         Matrix3d &R12_ransac, Vector3d &t12_ransac, vector<int> &inliers_stereo); // Borrowed from Kimera-VIO
 
-        void alternateOpt(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2,
+        void alternateOpt(const vector<cv::KeyPoint> &kps1, const vector<cv::KeyPoint> &kps2, const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2,
                           vector<int> &match12, Matrix3d &R12, Vector3d &t12);
 
         ros::NodeHandle nh;
@@ -94,11 +94,10 @@ namespace RPE
 
         double far_pt_thr;
 
-        bool enable_gnc;
-        unique_ptr<GNCPointCloudRegister> gnc_pc_register;
-
+        bool enable_ransac;
         int ransac_verbosity_level;
         int ransac_min_inliers;
+        bool enable_nlopt;
 
         using SacProblemMono = opengv::sac_problems::relative_pose::CentralRelativePoseSacProblem;
         unique_ptr<opengv::sac::Ransac<SacProblemMono>> mono_ransacer;
@@ -106,7 +105,8 @@ namespace RPE
         using SacProblemStereo = opengv::sac_problems::point_cloud::PointCloudSacProblem;
         unique_ptr<opengv::sac::Ransac<SacProblemStereo>> stereo_ransacer;
 
-        bool enable_nlopt;
+        bool enable_gnc;
+        unique_ptr<GNCPointCloudRegister> gnc_pc_register;
 
         bool enable_alternate_opt;
         bool enable_outdoor_mode;

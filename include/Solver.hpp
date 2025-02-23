@@ -42,8 +42,10 @@ namespace RPE
     public:
         TSolver(string settings_path);
         void solve(const vector<Vector3d> &P1, const vector<Vector3d> &P2, const MatrixXd &A, Matrix3d &R12, Vector3d &t12);
+        void refineTranslation(const vector<Vector3d> &P1, const vector<Vector3d> &P2, const MatrixXd &A, const Matrix3d &R12, Vector3d &t12);
 
         bool Ceres_log_to_console;
+        int GRB_log_to_console;
     };
 
     class PointCloudRegistrationErrorTerm

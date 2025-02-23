@@ -12,6 +12,8 @@ namespace RPE
         settings["cx"] >> cx;
         settings["cy"] >> cy;
 
+        settings["enable_subpix_corner_refinement"] >> enable_subpix_corner_refinement;
+
         settings["enable_hloc_matcher"] >> enable_hloc_matcher;
         if (enable_hloc_matcher)
         {
@@ -57,8 +59,6 @@ namespace RPE
 
             if (feature_detector_type != FeatureDetectorType::HLOC)
             {
-                settings["enable_subpix_corner_refinement"] >> enable_subpix_corner_refinement;
-
                 settings["descriptor_extractor_type"] >> descriptor_extractor_type;
                 switch (descriptor_extractor_type)
                 {
@@ -112,15 +112,12 @@ namespace RPE
 
         settings["far_pt_thr"] >> far_pt_thr;
 
-        settings["enable_gnc"] >> enable_gnc;
-        if (enable_gnc)
-        {
-            gnc_pc_register = make_unique<GNCPointCloudRegister>(settings_path);
-        }
-        else
+        settings["enable_ransac"] >> enable_ransac;
+        if (enable_ransac)
         {
             settings["ransac_verbosity_level"] >> ransac_verbosity_level;
             settings["ransac_min_inliers"] >> ransac_min_inliers;
+            settings["enable_nlopt"] >> enable_nlopt;
 
             mono_ransacer = make_unique<opengv::sac::Ransac<SacProblemMono>>();
             settings["mono_ransac_max_iterations"] >> mono_ransacer->max_iterations_;
@@ -129,17 +126,21 @@ namespace RPE
             stereo_ransacer = make_unique<opengv::sac::Ransac<SacProblemStereo>>();
             settings["stereo_ransac_max_iterations"] >> stereo_ransacer->max_iterations_;
             settings["stereo_ransac_threshold"] >> stereo_ransacer->threshold_;
+        }
 
-            settings["enable_nlopt"] >> enable_nlopt;
+        settings["enable_gnc"] >> enable_gnc;
+        if (enable_gnc)
+        {
+            gnc_pc_register = make_unique<GNCPointCloudRegister>(settings_path);
         }
 
         settings["enable_alternate_opt"] >> enable_alternate_opt;
+        settings["outdoor_mode"] >> enable_outdoor_mode;
         if (enable_alternate_opt)
         {
             A_solver = make_unique<ASolver>(settings_path);
             T_solver = make_unique<TSolver>(settings_path);
         }
-        settings["outdoor_mode"] >> enable_outdoor_mode;
     }
 
     bool RPE::estimate(const cv::Mat &img1_l_, const cv::Mat &img1_r_,
@@ -175,14 +176,20 @@ namespace RPE
         kps1_l_matched.clear();
         kps2_l_matched.clear();
 
-        kps1_l_refined.clear();
-        kps2_l_refined.clear();
-
         kps1_l_inliers_mono.clear();
         kps2_l_inliers_mono.clear();
 
-        kps1_l_inliers_stereo.clear();
-        kps2_l_inliers_stereo.clear();
+        kps1_l_outliers_stereo.clear();
+        kps2_l_outliers_stereo.clear();
+
+        kps1_l_outliers_gnc.clear();
+        kps2_l_outliers_gnc.clear();
+
+        kps1_l_refined.clear();
+        kps2_l_refined.clear();
+
+        kps1_l_outliers_refined_gnc.clear();
+        kps2_l_outliers_refined_gnc.clear();
 
         vector<cv::KeyPoint> kps1_l, kps1_r, kps2_l, kps2_r;
         vector<Vector3d> kps3d1, kps3d2;
@@ -244,6 +251,27 @@ namespace RPE
                 kps2_l.emplace_back(cv::KeyPoint(kps2_l_.at<float>(i, 0), kps2_l_.at<float>(i, 1), -1));
             for (size_t i = 0; i < kps2_r_.rows; i++)
                 kps2_r.emplace_back(cv::KeyPoint(kps2_r_.at<float>(i, 0), kps2_r_.at<float>(i, 1), -1));
+
+            // Subpixel corner refinement
+            if (enable_subpix_corner_refinement)
+            {
+                vector<cv::Point2f> kps1_l_ref, kps1_r_ref, kps2_l_ref, kps2_r_ref;
+                cv::KeyPoint::convert(kps1_l, kps1_l_ref);
+                cv::KeyPoint::convert(kps1_r, kps1_r_ref);
+                cv::KeyPoint::convert(kps2_l, kps2_l_ref);
+                cv::KeyPoint::convert(kps2_r, kps2_r_ref);
+
+                cv::TermCriteria criteria(cv::TermCriteria::EPS + cv::TermCriteria::MAX_ITER, 30, 0.1);
+                cv::cornerSubPix(img1_l, kps1_l_ref, cv::Size(7, 7), cv::Size(-1, -1), criteria);
+                cv::cornerSubPix(img1_r, kps1_r_ref, cv::Size(7, 7), cv::Size(-1, -1), criteria);
+                cv::cornerSubPix(img2_l, kps2_l_ref, cv::Size(7, 7), cv::Size(-1, -1), criteria);
+                cv::cornerSubPix(img2_r, kps2_r_ref, cv::Size(7, 7), cv::Size(-1, -1), criteria);
+
+                cv::KeyPoint::convert(kps1_l_ref, kps1_l);
+                cv::KeyPoint::convert(kps1_r_ref, kps1_r);
+                cv::KeyPoint::convert(kps2_l_ref, kps2_l);
+                cv::KeyPoint::convert(kps2_r_ref, kps2_r);
+            }
 
             // Backup originally extracted features
             kps1_l_ori = kps1_l;
@@ -557,14 +585,10 @@ namespace RPE
         /****** Geometric Verification ******/
         /************************************/
 
-        if (enable_gnc)
-        {
-            gnc_pc_register->registerPointCloudGNC(kps3d1, kps3d2, R12_gv, t12_gv);
-        }
-        else
+        if (enable_ransac)
         {
             vector<int> inliers_mono, inliers_stereo;
-            if (geometricVerificationNister(kps1_l, kps2_l, R12_gv_mono, inliers_mono))
+            if (geometricVerificationNister(kps1_l, kps2_l, R12_ransac_mono, inliers_mono))
             {
                 // Backup inlier features after mono RANSAC
                 for (size_t i = 0; i < inliers_mono.size(); i++)
@@ -573,13 +597,25 @@ namespace RPE
                     kps2_l_inliers_mono.emplace_back(kps2_l[inliers_mono[i]]);
                 }
 
-                if (geometricVerificationArun(kps3d1, kps3d2, R12_gv_mono, inliers_mono, R12_gv, t12_gv, inliers_stereo))
+                if (geometricVerificationArun(kps3d1, kps3d2, R12_ransac_mono, inliers_mono, R12_ransac, t12_ransac, inliers_stereo))
                 {
                     // Backup inlier features after stereo RANSAC
-                    for (size_t i = 0; i < inliers_stereo.size(); i++)
+                    for (size_t i = 0; i < kps1_l.size(); i++)
                     {
-                        kps1_l_inliers_stereo.emplace_back(kps1_l[inliers_stereo[i]]);
-                        kps2_l_inliers_stereo.emplace_back(kps2_l[inliers_stereo[i]]);
+                        bool inlier = false;
+                        for (size_t j = 0; j < inliers_stereo.size(); j++)
+                        {
+                            if (inliers_stereo[j] == i)
+                            {
+                                inlier = true;
+                                break;
+                            }
+                        }
+                        if (!inlier)
+                        {
+                            kps1_l_outliers_stereo.emplace_back(kps1_l[i]);
+                            kps2_l_outliers_stereo.emplace_back(kps2_l[i]);
+                        }
                     }
 
                     LOG(INFO) << "RANSAC pose recovery succeeded :)";
@@ -591,6 +627,21 @@ namespace RPE
                 return false;
         }
 
+        if (enable_gnc)
+        {
+            vector<int> inliers_gnc;
+            gnc_pc_register->registerPointCloudGNC(kps3d1, kps3d2, R12_gnc, t12_gnc, inliers_gnc);
+
+            for (size_t i = 0; i < kps1_l.size(); i++)
+            {
+                if (!inliers_gnc[i])
+                {
+                    kps1_l_outliers_gnc.emplace_back(kps1_l[i]);
+                    kps2_l_outliers_gnc.emplace_back(kps2_l[i]);
+                }
+            }
+        }
+
         auto t6 = chrono::high_resolution_clock::now();
 
         /****************************************************/
@@ -600,33 +651,48 @@ namespace RPE
         if (enable_alternate_opt)
         {
             // Set initial value
-            R12_refined = R12_gv;
-            t12_refined = t12_gv;
+            if (enable_gnc)
+            {
+                R12_refined = R12_gnc;
+                t12_refined = t12_gnc;
+            }
+            else if (enable_ransac)
+            {
+                R12_refined = R12_ransac;
+                t12_refined = t12_ransac;
+            }
+            else
+                LOG(FATAL) << "No initial pose provided for alternate optimization #^#";
 
-            if (enable_outdoor_mode && kps3d1.size() < 250) // Notable hyperparameter...
+            if (enable_outdoor_mode && kps3d1.size() < 1000)
             {
                 CHECK_EQ(match12.size(), kps3d1_stereo.size());
-                alternateOpt(kps3d1_stereo, kps3d2_stereo, match12, R12_refined, t12_refined);
+                alternateOpt(kps1_l_stereo, kps2_l_stereo, kps3d1_stereo, kps3d2_stereo, match12, R12_refined, t12_refined);
 
-                // Backup features after alternate optimization
-                vector<cv::KeyPoint> kps1_l_refined_, kps2_l_refined_;
-                kps1_l_refined_ = kps1_l_stereo;
-                kps2_l_refined_ = kps2_l_stereo;
-                rearrangeMatchedVec(match12, kps1_l_refined_, kps2_l_refined_);
-                kps1_l_refined = kps1_l_refined_;
-                kps2_l_refined = kps2_l_refined_;
+                // Backup features and 3d points after alternate optimization
+                kps1_l_refined = kps1_l_stereo;
+                kps2_l_refined = kps2_l_stereo;
+                rearrangeMatchedVec(match12, kps1_l_refined, kps2_l_refined);
+
+                kps3d1_refined = kps3d1_stereo;
+                kps3d2_refined = kps3d2_stereo;
+                rearrangeMatchedVec(match12, kps3d1_refined, kps3d2_refined);
             }
             else
             {
                 vector<int> match12_(kps3d1.size());
                 for (size_t i = 0; i < match12_.size(); i++)
                     match12_[i] = i;
-                alternateOpt(kps3d1, kps3d2, match12_, R12_refined, t12_refined);
+                alternateOpt(kps1_l, kps2_l, kps3d1, kps3d2, match12_, R12_refined, t12_refined);
 
-                // Backup features after alternate optimization
+                // Backup features and 3d points after alternate optimization
                 rearrangeMatchedVec(match12_, kps1_l, kps2_l);
                 kps1_l_refined = kps1_l;
                 kps2_l_refined = kps2_l;
+
+                rearrangeMatchedVec(match12_, kps3d1, kps3d2);
+                kps3d1_refined = kps3d1;
+                kps3d2_refined = kps3d2;
             }
 
             R12 = R12_refined;
@@ -717,7 +783,7 @@ namespace RPE
     void RPE::extractKpsDepth(vector<int> &stereo_match, vector<cv::KeyPoint> &kps_l, vector<cv::KeyPoint> &kps_r,
                               vector<Vector3d> &kps3d)
     {
-        // Filter out points with inf depth
+        // Filter out points with inf and negative depth
         for (size_t i = 0; i < kps_l.size(); i++)
         {
             if (stereo_match[i] >= 0)
@@ -726,7 +792,7 @@ namespace RPE
                 const double ur = kps_r[stereo_match[i]].pt.x;
 
                 double disparity = ul - ur;
-                if (-1e-5 < disparity && disparity < 1e-5)
+                if (disparity < 1e-5)
                     stereo_match[i] = -1;
             }
         }
@@ -781,7 +847,7 @@ namespace RPE
         vec2 = vec2_temp;
     }
 
-    bool RPE::geometricVerificationNister(const vector<cv::KeyPoint> &kps1, const vector<cv::KeyPoint> &kps2, Matrix3d &R12_gv_mono, vector<int> &inliers_mono)
+    bool RPE::geometricVerificationNister(const vector<cv::KeyPoint> &kps1, const vector<cv::KeyPoint> &kps2, Matrix3d &R12_ransac_mono, vector<int> &inliers_mono)
     {
         CHECK_EQ(kps1.size(), kps2.size());
 
@@ -806,7 +872,7 @@ namespace RPE
                 LOG(INFO) << "Mono RANSAC has " << mono_ransacer->inliers_.size() << " inliers";
 
                 opengv::transformation_t T12 = mono_ransacer->model_coefficients_;
-                R12_gv_mono = T12.block<3, 3>(0, 0);
+                R12_ransac_mono = T12.block<3, 3>(0, 0);
 
                 inliers_mono = mono_ransacer->inliers_;
 
@@ -825,8 +891,8 @@ namespace RPE
         }
     }
 
-    bool RPE::geometricVerificationArun(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2, const Matrix3d &R12_gv_mono, const vector<int> &inliers_mono,
-                                        Matrix3d &R12_gv, Vector3d &t12_gv, vector<int> &inliers_stereo)
+    bool RPE::geometricVerificationArun(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2, const Matrix3d &R12_ransac_mono, const vector<int> &inliers_mono,
+                                        Matrix3d &R12_ransac, Vector3d &t12_ransac, vector<int> &inliers_stereo)
     {
         CHECK_EQ(kps3d1.size(), kps3d2.size());
 
@@ -841,7 +907,7 @@ namespace RPE
             kps3d2_[i] = kps3d2[i];
         }
         opengv::point_cloud::PointCloudAdapter adapter(kps3d1_, kps3d2_);
-        adapter.setR12(R12_gv_mono);
+        adapter.setR12(R12_ransac_mono);
 
         stereo_ransacer->sac_model_ = std::make_shared<SacProblemStereo>(adapter);
         bool ransac_success = stereo_ransacer->computeModel(ransac_verbosity_level);
@@ -885,21 +951,21 @@ namespace RPE
                 kps3d2_inlier[i] = kps3d2[inliers_mono[i]];
             }
             opengv::point_cloud::PointCloudAdapter adapter_inlier(kps3d1_inlier, kps3d2_inlier);
-            adapter_inlier.setR12(R12_gv_mono);
+            adapter_inlier.setR12(R12_ransac_mono);
 
             opengv::transformation_t T12 = opengv::point_cloud::optimize_nonlinear(adapter_inlier);
-            R12_gv = T12.block<3, 3>(0, 0);
-            t12_gv = T12.col(3);
+            R12_ransac = T12.block<3, 3>(0, 0);
+            t12_ransac = T12.col(3);
         }
         else
         {
-            R12_gv = R12_;
-            t12_gv = t12_;
+            R12_ransac = R12_;
+            t12_ransac = t12_;
         }
         return true;
     }
 
-    void RPE::alternateOpt(const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2,
+    void RPE::alternateOpt(const vector<cv::KeyPoint> &kps1, const vector<cv::KeyPoint> &kps2, const vector<Vector3d> &kps3d1, const vector<Vector3d> &kps3d2,
                            vector<int> &match12, Matrix3d &R12, Vector3d &t12)
     {
         // Convert the match vector to match matrix
@@ -918,16 +984,73 @@ namespace RPE
 
         // Alternately optimize once
         A_solver->solve(kps3d1, kps3d2, R12, t12, A_tilde, A);
-        T_solver->solve(kps3d1, kps3d2, A, R12, t12);
+        // T_solver->solve(kps3d1, kps3d2, A, R12, t12);
 
         // Convert the match matrix back to match vector
+        size_t n_matches = 0;
         match12 = vector<int>(N1, -1);
         for (size_t i = 0; i < N1; i++)
             for (size_t j = 0; j < N2; j++)
                 if (A(j, i))
                 {
+                    n_matches++;
                     match12[i] = j;
                     break;
                 }
+
+        vector<Vector3d> kps3d1_refined_, kps3d2_refined_;
+        kps3d1_refined_ = kps3d1;
+        kps3d2_refined_ = kps3d2;
+        rearrangeMatchedVec(match12, kps3d1_refined_, kps3d2_refined_);
+
+        vector<int> inliers_gnc;
+        gnc_pc_register->registerPointCloudGNC(kps3d1_refined_, kps3d2_refined_, R12, t12, inliers_gnc);
+
+        vector<cv::KeyPoint> kps1_refined_, kps2_refined_;
+        kps1_refined_ = kps1;
+        kps2_refined_ = kps2;
+        rearrangeMatchedVec(match12, kps1_refined_, kps2_refined_);
+
+        for (size_t i = 0; i < kps1_refined_.size(); i++)
+        {
+            if (!inliers_gnc[i])
+            {
+                kps1_l_outliers_refined_gnc.emplace_back(kps1_refined_[i]);
+                kps2_l_outliers_refined_gnc.emplace_back(kps2_refined_[i]);
+            }
+        }
+
+        LOG(INFO) << "Num of refined matches = " << n_matches;
+        size_t n_groups = n_matches / 150;
+        LOG(INFO) << "Num of groups = " << n_groups;
+        R12_debug.resize(n_groups);
+        t12_debug.resize(n_groups);
+        size_t idx = 0;
+        for (size_t k = 0; k < n_groups; k++)
+        {
+            vector<int> match12_ = vector<int>(N1, -1);
+            for (size_t i = 0; i < 150;)
+            {
+                if (match12[idx] >= 0)
+                {
+                    match12_[idx] = match12[idx];
+                    idx++;
+                    i++;
+                }
+                else
+                {
+                    idx++;
+                }
+            }
+
+            vector<Vector3d> kps3d1_refined_, kps3d2_refined_;
+            kps3d1_refined_ = kps3d1;
+            kps3d2_refined_ = kps3d2;
+            rearrangeMatchedVec(match12_, kps3d1_refined_, kps3d2_refined_);
+
+            vector<int> inliers_gnc;
+            gnc_pc_register->registerPointCloudGNC(kps3d1_refined_, kps3d2_refined_, R12_debug[k], t12_debug[k], inliers_gnc);
+        }
+        CHECK(idx < N1);
     }
 }

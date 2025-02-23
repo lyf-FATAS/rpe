@@ -2,8 +2,8 @@
 
 img_l_topic: /d435i/infra1/image_rect_raw
 img_r_topic: /d435i/infra2/image_rect_raw
-odom_topic: /vins_estimator/imu_propagate
-# odom_topic: /vins_node/odometry
+# odom_topic: /vins_estimator/imu_propagate
+odom_topic: /vins_node/imu_propagate
 
 # 0: INFO  1: WARNING  2: ERROR  3: FATAL
 glog_severity_level: 0
@@ -17,15 +17,15 @@ enable_hloc_matcher: 1
 # Camera Parameters (Queried by the "rs-enumerate-devices -c" commmand)
 #----------------------------------------------------------------------
 
-baseline: 0.0498748570680618
-# baseline: 0.0501741543412209
+baseline: 0.0498748570680618  # cam 1
+# baseline: 0.0501741543412209  # cam 2
 
 # 1280 x 720
-fx: 640.303466796875
+fx: 640.303466796875  # cam 1
 fy: 640.303466796875
 cx: 641.59716796875
 cy: 355.898071289062
-# fx: 640.818542480469
+# fx: 640.818542480469  # cam 2
 # fy: 640.818542480469
 # cx: 637.510864257812
 # cy: 359.378448486328
@@ -42,7 +42,7 @@ cy: 355.898071289062
 
 # 0: GFTT  1: SIFT  2: HLOC
 feature_detector_type: 2
-enable_subpix_corner_refinement: 1
+enable_subpix_corner_refinement: 0
 # 0: SIFT  1: ORB
 descriptor_extractor_type: 0
 
@@ -115,6 +115,7 @@ enable_gnc: 1
 # 0: silent  1: summery
 gnc_verbosity_level: 1
 
+enable_ransac: 1
 # 0: silent  1: moderate  2: noisy
 ransac_verbosity_level: 0
 ransac_min_inliers: 6
@@ -123,7 +124,7 @@ mono_ransac_max_iterations: 300
 mono_ransac_threshold: 0.00001
 
 stereo_ransac_max_iterations: 300
-stereo_ransac_threshold: 0.3
+stereo_ransac_threshold: 0.6
 
 # This is a piece of 💩 (OpenGV's nlopt solver doesn't use a robust kernel). Do not enable !!!
 enable_nlopt: 0
@@ -132,15 +133,25 @@ enable_nlopt: 0
 # Parameters of Solvers
 #----------------------------------------------------------------------
 
-enable_alternate_opt: 0
+enable_alternate_opt: 1
 
 # 0: indoor environments (typically have rich artificial textures)  1: outdoor environments
-outdoor_mode: 0
+outdoor_mode: 1
 GRB_log_to_console: 1
 GRB_time_limit: 120
 # Weight for the affinity term: -mu * < A, A_tilde >
 mu: 0.5
 # Weight for the dense heuristic term: -nu * < A, 1 >
-nu: 0.5
+nu: 0.1
 
-Ceres_log_to_console: 0
+Ceres_log_to_console: 1
+
+
+
+
+
+
+
+
+
+

@@ -186,8 +186,10 @@ int main(int argc, char **argv)
 
     visualizer = make_unique<RPE::Visualizer>(nh);
     RPE::Visualizer::DrawType draw_type;
-    bool enable_alternate_opt;
+    bool enable_ransac, enable_gnc, enable_alternate_opt;
     settings["Visualizer.draw_type"] >> draw_type;
+    settings["enable_ransac"] >> enable_ransac;
+    settings["enable_gnc"] >> enable_gnc;
     settings["enable_alternate_opt"] >> enable_alternate_opt;
 
     string img_l_topic, img_r_topic, odom_topic;
@@ -273,21 +275,40 @@ int main(int argc, char **argv)
                                       odom1_.pose.pose.position.y,
                                       odom1_.pose.pose.position.z);
 
-                    visualizer->pubKps3d(RPE::kps3d1_matched, odom1_, "kps3d1");
-                    visualizer->pubKps3d(RPE::kps3d2_matched, odom2_, "kps3d2");
+                    visualizer->pubKps3d(RPE::kps3d1_stereo, odom1_, "kps3d1_gt");
+                    visualizer->pubKps3d(RPE::kps3d2_stereo, odom2_, "kps3d2_gt");
 
                     // x = R1 * (R12 * x2 + t12) + t1 = (R1 * R12) * x2 + (R1 * t12 + t1)
-                    const Matrix3d R2_ransan = R1 * RPE::R12_gv;
-                    const Vector3d t2_ransan = R1 * RPE::t12_gv + t1;
-                    visualizer->pubPose(R2_ransan, t2_ransan, "odom2_ransac_estimate");
-                    visualizer->pubKps3d(RPE::kps3d2_matched, R2_ransan, t2_ransan, "kps3d2_ransac_estimate");
+
+                    if (enable_ransac)
+                    {
+                        const Matrix3d R2_ransac = R1 * RPE::R12_ransac;
+                        const Vector3d t2_ransac = R1 * RPE::t12_ransac + t1;
+                        visualizer->pubPose(R2_ransac, t2_ransac, "pose2_ransac"); 
+                        visualizer->pubKps3d(RPE::kps3d2_matched, R2_ransac, t2_ransac, "kps3d2_ransac");
+                    }
+
+                    if (enable_gnc)
+                    {
+                        const Matrix3d R2_gnc = R1 * RPE::R12_gnc;
+                        const Vector3d t2_gnc = R1 * RPE::t12_gnc + t1;
+                        visualizer->pubPose(R2_gnc, t2_gnc, "pose2_gnc");
+                        visualizer->pubKps3d(RPE::kps3d2_matched, R2_gnc, t2_gnc, "kps3d2_gnc");
+                    }
 
                     if (enable_alternate_opt)
                     {
                         const Matrix3d R2 = R1 * R12;
                         const Vector3d t2 = R1 * t12 + t1;
-                        visualizer->pubPose(R2, t2, "odom2_estimate");
-                        visualizer->pubKps3d(RPE::kps3d2_matched, R2, t2, "kps3d2_estimate");
+                        visualizer->pubPose(R2, t2, "pose2_altopt");
+                        visualizer->pubKps3d(RPE::kps3d2_refined, R2, t2, "kps3d2_altopt");
+
+                        for (size_t i = 0; i < RPE::R12_debug.size(); i++)
+                        {
+                            const Matrix3d R2 = R1 * RPE::R12_debug[i];
+                            const Vector3d t2 = R1 * RPE::t12_debug[i] + t1;
+                            visualizer->pubPose(R2, t2, "pose2_debug" + to_string(i));
+                        }
                     }
                 }
                 trigger = false;
@@ -342,21 +363,33 @@ int main(int argc, char **argv)
                                   odom1_.pose.pose.position.y,
                                   odom1_.pose.pose.position.z);
 
-                visualizer->pubKps3d(RPE::kps3d1_matched, odom1_, "kps3d1");
-                visualizer->pubKps3d(RPE::kps3d2_matched, odom2_, "kps3d2");
+                visualizer->pubKps3d(RPE::kps3d1_stereo, odom1_, "kps3d1_gt");
+                visualizer->pubKps3d(RPE::kps3d2_stereo, odom2_, "kps3d2_gt");
 
                 // x = R1 * (R12 * x2 + t12) + t1 = (R1 * R12) * x2 + (R1 * t12 + t1)
-                const Matrix3d R2_ransan = R1 * RPE::R12_gv;
-                const Vector3d t2_ransan = R1 * RPE::t12_gv + t1;
-                visualizer->pubPose(R2_ransan, t2_ransan, "odom2_ransac_estimate");
-                visualizer->pubKps3d(RPE::kps3d2_matched, R2_ransan, t2_ransan, "kps3d2_ransac_estimate");
+
+                if (enable_ransac)
+                {
+                    const Matrix3d R2_ransac = R1 * RPE::R12_ransac;
+                    const Vector3d t2_ransac = R1 * RPE::t12_ransac + t1;
+                    visualizer->pubPose(R2_ransac, t2_ransac, "pose2_ransac");
+                    visualizer->pubKps3d(RPE::kps3d2_matched, R2_ransac, t2_ransac, "kps3d2_ransac");
+                }
+
+                if (enable_gnc)
+                {
+                    const Matrix3d R2_gnc = R1 * RPE::R12_gnc;
+                    const Vector3d t2_gnc = R1 * RPE::t12_gnc + t1;
+                    visualizer->pubPose(R2_gnc, t2_gnc, "pose2_gnc");
+                    visualizer->pubKps3d(RPE::kps3d2_matched, R2_gnc, t2_gnc, "kps3d2_gnc");
+                }
 
                 if (enable_alternate_opt)
                 {
                     const Matrix3d R2 = R1 * R12;
                     const Vector3d t2 = R1 * t12 + t1;
-                    visualizer->pubPose(R2, t2, "odom2_estimate");
-                    visualizer->pubKps3d(RPE::kps3d2_matched, R2, t2, "kps3d2_estimate");
+                    visualizer->pubPose(R2, t2, "pose2_altopt");
+                    visualizer->pubKps3d(RPE::kps3d2_refined, R2, t2, "kps3d2_altopt");
                 }
             }
             break;
