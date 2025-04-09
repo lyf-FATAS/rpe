@@ -329,5 +329,5 @@ if __name__ == "__main__":
 
     rospy.init_node("matching_server")
     s = rospy.Service("hloc_matching", Matching, match_imgs)
-    print("============= Matching Server, QiDong! =============")
+    print("============= Matching Server =============")
     rospy.spin()

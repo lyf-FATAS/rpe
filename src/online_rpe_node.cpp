@@ -261,10 +261,10 @@ int main(int argc, char **argv)
                 Vector3d t12;
                 bool recover_pose_success = estimator.estimate(img1_l, img1_r, img2_l, img2_r, R12, t12);
 
-                visualizer->draw(draw_type);
-                // visualizer->pubKps3d(RPE::kps3d1_stereo, Matrix3d::Identity(), Vector3d::Zero(), "kps3d1_stereo");
-                // visualizer->pubKps3d(RPE::kps3d2_stereo, Matrix3d::Identity(), Vector3d::Zero(), "kps3d2_stereo");
+                if (!recover_pose_success)
+                    LOG(WARNING) << "Pose estimation failed. Possibly due to lack of sufficient number of initial feature correspondences.";
 
+                visualizer->draw(draw_type);
                 if (recv_odom && recover_pose_success)
                 {
                     const Matrix3d R1(Quaterniond(odom1_.pose.pose.orientation.w,
@@ -278,13 +278,11 @@ int main(int argc, char **argv)
                     visualizer->pubKps3d(RPE::kps3d1_stereo, odom1_, "kps3d1_gt");
                     visualizer->pubKps3d(RPE::kps3d2_stereo, odom2_, "kps3d2_gt");
 
-                    // x = R1 * (R12 * x2 + t12) + t1 = (R1 * R12) * x2 + (R1 * t12 + t1)
-
                     if (enable_ransac)
                     {
                         const Matrix3d R2_ransac = R1 * RPE::R12_ransac;
                         const Vector3d t2_ransac = R1 * RPE::t12_ransac + t1;
-                        visualizer->pubPose(R2_ransac, t2_ransac, "pose2_ransac"); 
+                        visualizer->pubPose(R2_ransac, t2_ransac, "pose2_ransac");
                         visualizer->pubKps3d(RPE::kps3d2_matched, R2_ransac, t2_ransac, "kps3d2_ransac");
                     }
 
@@ -302,13 +300,6 @@ int main(int argc, char **argv)
                         const Vector3d t2 = R1 * t12 + t1;
                         visualizer->pubPose(R2, t2, "pose2_altopt");
                         visualizer->pubKps3d(RPE::kps3d2_refined, R2, t2, "kps3d2_altopt");
-
-                        for (size_t i = 0; i < RPE::R12_debug.size(); i++)
-                        {
-                            const Matrix3d R2 = R1 * RPE::R12_debug[i];
-                            const Vector3d t2 = R1 * RPE::t12_debug[i] + t1;
-                            visualizer->pubPose(R2, t2, "pose2_debug" + to_string(i));
-                        }
                     }
                 }
                 trigger = false;

@@ -25,12 +25,12 @@ find_package(catkin REQUIRED COMPONENTS
 
 ## System dependencies are found with CMake's conventions
 # find_package(Boost REQUIRED COMPONENTS system)
-find_package(OpenCV 4.4 REQUIRED PATHS /home/laji/Apps/opencv-4.8.0/build)
+find_package(OpenCV 4.4 REQUIRED)
 find_package(PCL REQUIRED)
-find_package(opengv REQUIRED PATHS /home/laji/Apps/opengv/build)
-find_package(GTSAM 4.2 REQUIRED PATHS /home/laji/Apps/gtsam/build)
+find_package(opengv REQUIRED)
+find_package(GTSAM REQUIRED)
 find_package(GUROBI REQUIRED)
-find_package(Ceres REQUIRED PATHS /home/laji/Apps/ceres-solver-2.1.0/build)
+find_package(Ceres REQUIRED)
 # See https://github.com/google/glog/issues/519
 find_package(PkgConfig REQUIRED)
 pkg_check_modules(glog REQUIRED libglog)
